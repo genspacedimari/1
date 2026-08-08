@@ -1,0 +1,111 @@
+import { NavLink } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Chrome as Home, Cpu, User, Settings, Presentation } from 'lucide-react';
+import { cn } from '@/utils/cn';
+import { useAuthStore } from '@/stores/authStore';
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: typeof Home;
+  end?: boolean;
+}
+
+/** Base nav — available to everyone (authenticated + guest). */
+const BASE_NAV: NavItem[] = [
+  { to: '/', label: 'Home', icon: Home, end: true },
+  { to: '/simulator', label: 'Simulator', icon: Cpu },
+  { to: '/settings', label: 'Settings', icon: Settings },
+];
+
+/** Profile entry — different label/icon for guest vs signed-in. */
+function profileNav(isGuest: boolean): NavItem {
+  return { to: '/profile', label: isGuest ? 'Guest' : 'Profile', icon: User };
+}
+
+/** Teacher nav — only shown to authenticated teachers. */
+const TEACHER_NAV: NavItem = { to: '/teacher', label: 'Teacher', icon: Presentation };
+
+function buildNav(isGuest: boolean, role?: string): NavItem[] {
+  const items = [...BASE_NAV, profileNav(isGuest)];
+  if (!isGuest && (role === 'teacher' || role === 'admin')) {
+    items.splice(3, 0, TEACHER_NAV);
+  }
+  return items;
+}
+
+/** Desktop: fixed left rail. Mobile: fixed bottom bar. Same data, two layouts. */
+export function SidebarNav() {
+  const isGuest = useAuthStore((s) => s.isGuest);
+  const role = useAuthStore((s) => s.profile?.role);
+  const items = buildNav(isGuest, role);
+
+  return (
+    <nav className="hidden md:flex md:w-20 lg:w-56 shrink-0 flex-col gap-1 border-r border-border dark:border-border-dark p-3 lg:p-4">
+      <div className="mb-4 px-2 hidden lg:block">
+        <p className="font-display text-sm font-semibold">GENSPACE</p>
+        <p className="text-[11px] text-muted-foreground">One Space for Everything.</p>
+      </div>
+      {items.map((item) => (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          end={item.end}
+          className={({ isActive }) =>
+            cn(
+              'relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-colors',
+              'lg:justify-start justify-center',
+              isActive
+                ? 'text-primary bg-primary/10'
+                : 'text-muted-foreground hover:bg-muted/40 dark:hover:bg-white/5'
+            )
+          }
+        >
+          <item.icon size={20} strokeWidth={2.25} />
+          <span className="hidden lg:inline">{item.label}</span>
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
+
+export function BottomNav() {
+  const isGuest = useAuthStore((s) => s.isGuest);
+  const role = useAuthStore((s) => s.profile?.role);
+  const items = buildNav(isGuest, role);
+
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md items-center justify-around gap-1 p-2 md:hidden">
+      <div className="glass flex w-full items-center justify-around rounded-3xl px-2 py-2">
+        {items.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className="relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium"
+          >
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <motion.div
+                    layoutId="bottom-nav-active"
+                    className="absolute inset-0 -z-10 rounded-2xl bg-primary/15"
+                    transition={{ type: 'spring', bounce: 0.25, duration: 0.4 }}
+                  />
+                )}
+                <item.icon
+                  size={20}
+                  strokeWidth={2.25}
+                  className={isActive ? 'text-primary' : 'text-muted-foreground'}
+                />
+                <span className={isActive ? 'text-primary' : 'text-muted-foreground'}>
+                  {item.label}
+                </span>
+              </>
+            )}
+          </NavLink>
+        ))}
+      </div>
+    </nav>
+  );
+}
