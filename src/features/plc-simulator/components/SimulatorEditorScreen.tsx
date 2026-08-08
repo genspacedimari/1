@@ -99,7 +99,7 @@ const TOOLBAR_ITEMS: { id: ToolId; tooltip: string; color: string }[] = [
   { id: 'CTD', tooltip: 'Count Down', color: '#0891B2' },
   { id: 'RES', tooltip: 'Reset', color: '#DC2626' },
   { id: 'MEM', tooltip: 'Memory Bit', color: '#7C3AED' },
-  { id: 'BRANCH', tooltip: 'Branch / Junction (tap a wire, then tap where it connects)', color: '#6B7280' },
+  { id: 'BRANCH', tooltip: 'Branch / Junction (tap a cell — a new lane appears instantly)', color: '#6B7280' },
   { id: 'DELETE', tooltip: 'Delete Cell', color: '#EF4444' },
 ]
 
@@ -449,6 +449,9 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
   const [fabOpen, setFabOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [branchAnchor, setBranchAnchor] = useState<{ rungId: number; row: number; col: number } | null>(null)
+  // 'new'     → tap ONE cell, a lane + vertical wire appears instantly (default, matches how every other tool works: one tap = one placement).
+  // 'connect' → advanced: tap two existing lanes to tie them together. Opt-in only, so the default branch action never waits for a second tap.
+  const [branchMode, setBranchMode] = useState<'new' | 'connect'>('new')
   // Purely visual feedback for the BRANCH tool — never read by the engine, the
   // parser, or export. `snapFlash` briefly marks a junction right after it's
   // placed so it visibly "locks" into the grid instead of just silently appearing.
@@ -780,30 +783,29 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
   const handleCellTap = (rungId: number, row: number, col: number) => {
     if (selectedTool === 'DELETE') { clearCell(rungId, row, col); return }
     if (selectedTool === 'BRANCH') {
-      // Real CX-Programmer branch workflow, generalized to any wire, any row:
-      //  1st tap  → arm this wire as the junction's anchor point.
-      //  2nd tap same row  → branch OUT: a brand-new parallel lane drops from here.
-      //  2nd tap another row → branch CONNECTS: ties the two existing rows together
-      //                        (this is how a lane merges back, or how two lanes join).
+      if (branchMode === 'new') {
+        // Default branch action: ONE tap, right where the finger lands — a new
+        // lane drops from this exact row/column immediately. No anchor step,
+        // no second tap, no toast to read first.
+        const r = findRung(rungId)
+        const newRowIdx = r ? r.rows.length : row + 1
+        branchOut(rungId, row, col)
+        triggerSnapFlash(rungId, col, row, newRowIdx)
+        return
+      }
+      // 'connect' mode only: tie two EXISTING lanes together — this genuinely
+      // needs two points, so it keeps the anchor/second-tap flow, but the user
+      // has to opt into this mode first (see the mode toggle in the hint bar).
       if (!branchAnchor || branchAnchor.rungId !== rungId) {
         setBranchAnchor({ rungId, row, col })
-        showToast('Tap the same wire again for a new lane, or tap another wire to connect')
+        showToast('Now tap the wire you want to connect it to')
         return
       }
       const anchor = branchAnchor
       setBranchAnchor(null)
       if (anchor.row === row && anchor.col === col) return // tapped the anchor itself again — treat as cancel
-      if (anchor.row === row) {
-        // The new lane always lands at rows.length (branchOut's own rule) — we only
-        // read that here to know which row to flash, we don't change how it's chosen.
-        const r = findRung(rungId)
-        const newRowIdx = r ? r.rows.length : row + 1
-        branchOut(rungId, row, anchor.col)
-        triggerSnapFlash(rungId, anchor.col, anchor.row, newRowIdx)
-      } else {
-        linkRows(rungId, anchor.row, row, anchor.col)
-        triggerSnapFlash(rungId, anchor.col, anchor.row, row)
-      }
+      linkRows(rungId, anchor.row, row, anchor.col)
+      triggerSnapFlash(rungId, anchor.col, anchor.row, row)
       return
     }
     setBranchAnchor(null)
@@ -1074,7 +1076,7 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
           <button
             key={item.id}
             className="ge-btn"
-            onClick={() => { setSelectedTool(item.id); setBranchAnchor(null) }}
+            onClick={() => { setSelectedTool(item.id); setBranchAnchor(null); if (item.id === 'BRANCH') setBranchMode('new') }}
             title={item.tooltip}
             style={{
               flexShrink: 0,
@@ -1099,29 +1101,58 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
       <div style={{
         backgroundColor: toolbar, borderBottom: `1px solid ${border}`, padding: '4px 12px', flexShrink: 0,
         fontSize: 10, color: muted, fontFamily: 'JetBrains Mono',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap',
       }}>
         <span>
           {selectedTool === 'SELECT' && 'SELECT MODE · tap a cell to edit, tap an empty cell to insert'}
           {selectedTool === 'DELETE' && 'DELETE MODE · tap a cell to clear it back to EMPTY'}
           {selectedTool === 'WIRE' && 'WIRE MODE · tap a cell to place a wire segment connecting it to its neighbours'}
-          {selectedTool === 'BRANCH' && (branchAnchor
-            ? 'BRANCH MODE · column locked (see guide) — tap the SAME wire for a new lane, or ANY other row to connect'
-            : 'BRANCH MODE · tap any wire to lock a junction column, then tap a row to connect it there')}
+          {selectedTool === 'BRANCH' && branchMode === 'new' && 'BRANCH MODE · tap any cell — a new lane + vertical wire appears there instantly'}
+          {selectedTool === 'BRANCH' && branchMode === 'connect' && (branchAnchor
+            ? 'CONNECT MODE · now tap the other wire to tie them together'
+            : 'CONNECT MODE · tap the first wire, then the second, to link two existing lanes')}
           {!['SELECT', 'DELETE', 'WIRE', 'BRANCH'].includes(selectedTool as string) && `${selectedTool} MODE · tap a cell to insert directly · double-tap for full picker`}
         </span>
-        {selectedTool === 'BRANCH' && branchAnchor && (
-          <button
-            className="ge-btn"
-            onClick={() => setBranchAnchor(null)}
-            style={{
-              flexShrink: 0, fontSize: 9, fontFamily: 'JetBrains Mono', fontWeight: 700,
-              color: '#EF4444', backgroundColor: '#EF444418', border: '1px solid #EF444444',
-              borderRadius: 6, padding: '2px 8px', cursor: 'pointer',
-            }}
-          >
-            ✕ Cancel
-          </button>
+        {selectedTool === 'BRANCH' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: `1px solid ${border}` }}>
+              <button
+                className="ge-btn"
+                onClick={() => { setBranchMode('new'); setBranchAnchor(null) }}
+                style={{
+                  fontSize: 9, fontFamily: 'JetBrains Mono', fontWeight: 700, padding: '3px 8px', border: 'none', cursor: 'pointer',
+                  color: branchMode === 'new' ? '#fff' : muted,
+                  backgroundColor: branchMode === 'new' ? '#6B7280' : 'transparent',
+                }}
+              >
+                New Lane
+              </button>
+              <button
+                className="ge-btn"
+                onClick={() => { setBranchMode('connect'); setBranchAnchor(null) }}
+                style={{
+                  fontSize: 9, fontFamily: 'JetBrains Mono', fontWeight: 700, padding: '3px 8px', border: 'none', cursor: 'pointer',
+                  color: branchMode === 'connect' ? '#fff' : muted,
+                  backgroundColor: branchMode === 'connect' ? '#6B7280' : 'transparent',
+                }}
+              >
+                Connect
+              </button>
+            </div>
+            {branchMode === 'connect' && branchAnchor && (
+              <button
+                className="ge-btn"
+                onClick={() => setBranchAnchor(null)}
+                style={{
+                  flexShrink: 0, fontSize: 9, fontFamily: 'JetBrains Mono', fontWeight: 700,
+                  color: '#EF4444', backgroundColor: '#EF444418', border: '1px solid #EF444444',
+                  borderRadius: 6, padding: '2px 8px', cursor: 'pointer',
+                }}
+              >
+                ✕ Cancel
+              </button>
+            )}
+          </div>
         )}
       </div>
 
