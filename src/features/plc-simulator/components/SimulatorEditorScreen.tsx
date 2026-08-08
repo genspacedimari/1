@@ -449,6 +449,12 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
   const [fabOpen, setFabOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [branchAnchor, setBranchAnchor] = useState<{ rungId: number; row: number; col: number } | null>(null)
+  // BRANCH-MODE HOVER PREVIEW ONLY — purely visual, never read by branchOut/
+  // linkRows/handleCellTap. Lets the user see, before committing the 2nd tap,
+  // exactly which row will be joined and which column the vertical wire will
+  // snap to (always branchAnchor.col — never the hovered cell's own column),
+  // so they don't have to aim for a precise pixel to get the result they see.
+  const [branchHoverRow, setBranchHoverRow] = useState<number | null>(null)
   const workspaceRef = useRef<HTMLDivElement>(null)
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(t => (t === msg ? null : t)), 2200) }
 
@@ -775,18 +781,34 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
       //  2nd tap another row → branch CONNECTS: ties the two existing rows together
       //                        (this is how a lane merges back, or how two lanes join).
       if (!branchAnchor || branchAnchor.rungId !== rungId) {
+        // UX GUARD ONLY — same branchOut/linkRows calls as before, just gated so
+        // the anchor always locks onto an actual wire/component instead of an
+        // empty cell the user may have missed by a pixel. No data/model change.
+        const r = findRung(rungId)
+        const cellHere = r ? getCellAt(r, row, col) : null
+        if (!cellHere) {
+          showToast('Tap an existing wire or component to start a branch — not an empty cell')
+          return
+        }
         setBranchAnchor({ rungId, row, col })
+        setBranchHoverRow(null)
         showToast('Tap the same wire again for a new lane, or tap another wire to connect')
         return
       }
       const anchor = branchAnchor
       setBranchAnchor(null)
+      setBranchHoverRow(null)
       if (anchor.row === row && anchor.col === col) return // tapped the anchor itself again — treat as cancel
+      // The vertical wire always snaps to the anchor's column (anchor.col) —
+      // that's the locked, valid connection point — regardless of which
+      // column the 2nd tap landed in, so the user never needs pixel-precise
+      // column alignment on the confirming tap.
       if (anchor.row === row) branchOut(rungId, row, anchor.col)
       else linkRows(rungId, anchor.row, row, anchor.col)
       return
     }
     setBranchAnchor(null)
+    setBranchHoverRow(null)
     if (selectedTool === 'WIRE') { placeCell(rungId, row, col, { type: 'WIRE', address: '' }); return }
     if (selectedTool === 'SELECT') {
       const r = findRung(rungId)
@@ -1054,7 +1076,7 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
           <button
             key={item.id}
             className="ge-btn"
-            onClick={() => { setSelectedTool(item.id); setBranchAnchor(null) }}
+            onClick={() => { setSelectedTool(item.id); setBranchAnchor(null); setBranchHoverRow(null) }}
             title={item.tooltip}
             style={{
               flexShrink: 0,
@@ -1083,7 +1105,7 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
         {selectedTool === 'SELECT' && 'SELECT MODE · tap a cell to edit, tap an empty cell to insert'}
         {selectedTool === 'DELETE' && 'DELETE MODE · tap a cell to clear it back to EMPTY'}
         {selectedTool === 'WIRE' && 'WIRE MODE · tap a cell to place a wire segment connecting it to its neighbours'}
-        {selectedTool === 'BRANCH' && (branchAnchor ? 'BRANCH MODE · now tap the SAME wire again for a new lane, or tap ANOTHER wire to connect them' : 'BRANCH MODE · tap any wire — main rail or lane — to start a junction')}
+        {selectedTool === 'BRANCH' && (branchAnchor ? 'BRANCH MODE · highlighted row = new lane, highlighted wires in other rows = connect · always snaps to the locked column' : 'BRANCH MODE · tap any highlighted wire — main rail or lane — to start a junction')}
         {!['SELECT', 'DELETE', 'WIRE', 'BRANCH'].includes(selectedTool as string) && `${selectedTool} MODE · tap a cell to insert directly · double-tap for full picker`}
       </div>
 
@@ -1163,18 +1185,47 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
                       {/* every row is rendered the same way — the main rail (row 0) is not
                           structurally different from a branch lane, exactly as requested:
                           "Branch is simply the visual result of connected wires" */}
+                      {/* ── BRANCH-MODE SNAP GUIDANCE (visual only) ──────────────────
+                          Purely presentational lookups per cell below; none of this
+                          feeds back into branchOut/linkRows/handleCellTap, which are
+                          unchanged. It just makes the already-locked-to-a-cell
+                          interaction visible before the user commits to it. */}
                       {rung.rows.map((row, r) => row.map((cell, c) => {
-                        const isAnchor = !!branchAnchor && branchAnchor.rungId === rung.id && branchAnchor.row === r && branchAnchor.col === c
+                        const branchModeOn = selectedTool === 'BRANCH'
+                        const anchorHere = !!branchAnchor && branchAnchor.rungId === rung.id ? branchAnchor : null
+                        const isAnchor = !!anchorHere && anchorHere.row === r && anchorHere.col === c
+                        // Before an anchor is picked: any wire/component is a valid starting
+                        // point — outline them so the user can see where to tap without
+                        // hunting for an exact pixel.
+                        const isValidStart = branchModeOn && !anchorHere && !!cell
+                        // After an anchor is picked: the anchor's own row is the "branch
+                        // out" target (result always snaps to anchorHere.col, no matter
+                        // which column in the row is tapped); any wire in another row is
+                        // a valid "connect" target (also snaps to anchorHere.col).
+                        const isBranchOutTarget = !!anchorHere && anchorHere.row === r && !isAnchor
+                        const isConnectTarget = !!anchorHere && anchorHere.row !== r && !!cell
+                        const isHoveredRow = !!anchorHere && branchHoverRow === r
                         return (
                           <div
                             key={`r${r}-c${c}`}
                             onClick={e => { e.stopPropagation(); handleCellTap(rung.id, r, c) }}
                             onDoubleClick={e => { e.stopPropagation(); handleCellDoubleTap(rung.id, r, c) }}
+                            onMouseEnter={() => { if (anchorHere) setBranchHoverRow(r) }}
+                            onMouseLeave={() => { if (anchorHere) setBranchHoverRow(h => (h === r ? null : h)) }}
                             style={{
                               gridColumn: c + 1, gridRow: r + 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
                               cursor: 'pointer', boxSizing: 'border-box', borderRight: `1px solid ${gridLine}`, borderBottom: `1px solid ${gridLine}`,
-                              backgroundColor: r > 0 ? (isDark ? '#20202088' : '#F7F7F788') : undefined,
-                              boxShadow: isAnchor ? 'inset 0 0 0 2px #F59E0B' : undefined,
+                              backgroundColor: (isBranchOutTarget || isConnectTarget) && isHoveredRow
+                                ? (isDark ? '#F59E0B22' : '#F59E0B18')
+                                : r > 0 ? (isDark ? '#20202088' : '#F7F7F788') : undefined,
+                              boxShadow: isAnchor
+                                ? 'inset 0 0 0 2px #F59E0B'
+                                : isValidStart
+                                  ? `inset 0 0 0 1.5px ${isDark ? '#F59E0B99' : '#F59E0B77'}`
+                                  : (isBranchOutTarget || isConnectTarget)
+                                    ? `inset 0 0 0 1.5px ${isDark ? '#F59E0B55' : '#F59E0B44'}`
+                                    : undefined,
+                              transition: 'background-color 120ms ease, box-shadow 120ms ease',
                             }}
                           >
                             <CellSVG cell={cell} isActive={running && !!powerMap[`${rung.id}-r${r}-${c}`]} conducts={running && !!powerMap[`${rung.id}-r${r}-${c}-out`]} isDark={isDark} error={validity.badCells.has(`${r}-${c}`)} />
@@ -1192,14 +1243,46 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
                         const height = (botRow - topRow) * CELL_H
                         const linkOn = validity.valid && running && !!powerMap[`${rung.id}-r${l.rowA}-${l.col}`]
                         const tieColor = !validity.valid ? '#EF4444' : linkOn ? '#22C55E' : railColor
+                        // Hit target now matches the full visual bounding box (with a
+                        // few px of padding) instead of a collapsed 0×0 wrapper, so
+                        // removing a junction no longer needs a pixel-precise tap on
+                        // the 8px dot.
                         return (
-                          <div key={`link-${li}`} onClick={e => { e.stopPropagation(); linkRows(rung.id, l.rowA, l.rowB, l.col) }} title="Tap to remove this junction" style={{ cursor: 'pointer' }}>
-                            <div style={{ position: 'absolute', left: l.col * CELL_W - 1, top, width: 2, height, backgroundColor: tieColor, zIndex: 2 }} />
-                            <div style={{ position: 'absolute', left: l.col * CELL_W - 4, top: topRow * CELL_H + CELL_H / 2 - 4, width: 8, height: 8, borderRadius: 4, backgroundColor: tieColor, zIndex: 3 }} />
-                            <div style={{ position: 'absolute', left: l.col * CELL_W - 4, top: botRow * CELL_H + CELL_H / 2 - 4, width: 8, height: 8, borderRadius: 4, backgroundColor: tieColor, zIndex: 3 }} />
+                          <div
+                            key={`link-${li}`}
+                            onClick={e => { e.stopPropagation(); linkRows(rung.id, l.rowA, l.rowB, l.col) }}
+                            title="Tap to remove this junction"
+                            style={{
+                              position: 'absolute', left: l.col * CELL_W - 12, top: top - 6, width: 24, height: height + 12,
+                              cursor: 'pointer', zIndex: 4,
+                            }}
+                          >
+                            <div style={{ position: 'absolute', left: 11, top: 6, width: 2, height, backgroundColor: tieColor, zIndex: 2 }} />
+                            <div style={{ position: 'absolute', left: 8, top: 2, width: 8, height: 8, borderRadius: 4, backgroundColor: tieColor, zIndex: 3 }} />
+                            <div style={{ position: 'absolute', left: 8, top: height + 4, width: 8, height: 8, borderRadius: 4, backgroundColor: tieColor, zIndex: 3 }} />
                           </div>
                         )
                       })}
+
+                      {/* Live snap preview (visual only, non-interactive) — while a branch
+                          anchor is armed and the user is hovering another row, show a
+                          dashed line at the LOCKED column (anchorHere.col) so it's clear
+                          before committing exactly where the vertical wire will land. */}
+                      {!!branchAnchor && branchAnchor.rungId === rung.id && branchHoverRow !== null && branchHoverRow !== branchAnchor.row && (() => {
+                        const topRow = Math.min(branchAnchor.row, branchHoverRow)
+                        const botRow = Math.max(branchAnchor.row, branchHoverRow)
+                        const top = topRow * CELL_H + CELL_H / 2
+                        const height = (botRow - topRow) * CELL_H
+                        return (
+                          <div
+                            style={{
+                              position: 'absolute', left: branchAnchor.col * CELL_W - 1, top, width: 2, height,
+                              borderLeft: `2px dashed ${isDark ? '#F59E0B' : '#D97706'}`, opacity: 0.85,
+                              pointerEvents: 'none', zIndex: 5,
+                            }}
+                          />
+                        )
+                      })()}
                     </div>
 
                     {/* Lanes & junctions — plain-language control chips over the wiring graph */}
