@@ -1,0 +1,23 @@
+{
+  "id": "example-timer",
+  "name": "Timer: I1 -> TIM1 (2s) -> O1",
+  "rungs": [
+    {
+      "id": "r1",
+      "startIds": ["c_i1"],
+      "elements": [
+        { "id": "c_i1", "kind": "CONTACT", "mode": "NO", "address": { "type": "I", "number": 1 }, "connectsTo": ["timer_1"], "gridX": 0, "gridY": 0 },
+        { "id": "timer_1", "kind": "TIMER", "timerType": "TON", "address": { "type": "TIM", "number": 1 }, "presetMs": 2000, "connectsTo": [], "gridX": 1, "gridY": 0 }
+      ]
+    },
+    {
+      "id": "r2",
+      "startIds": ["c_tim1_dn"],
+      "elements": [
+        { "id": "c_tim1_dn", "kind": "CONTACT", "mode": "NO", "address": { "type": "TIM", "number": 1 }, "connectsTo": ["coil_o1"], "gridX": 0, "gridY": 0 },
+        { "id": "coil_o1", "kind": "COIL", "address": { "type": "O", "number": 1 }, "connectsTo": [], "gridX": 1, "gridY": 0 }
+      ]
+    }
+  ],
+  "meta": { "createdAt": "2026-07-17T00:00:00.000Z", "updatedAt": "2026-07-17T00:00:00.000Z", "engineVersion": "0.1.0" }
+}

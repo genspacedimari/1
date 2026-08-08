@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* GENSPACE base layer — design tokens live in tailwind.config.ts; this file
+   only wires up defaults and the couple of effects (glass) reused everywhere. */
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-secondary text-dark font-sans antialiased transition-colors duration-300;
+    @apply dark:bg-surface-dark dark:text-secondary;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display;
+  }
+
+  ::selection {
+    @apply bg-primary/30;
+  }
+
+  /* Visible focus ring everywhere — accessibility floor, not optional. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-secondary dark:ring-offset-surface-dark;
+  }
+}
+
+@layer components {
+  /* Reusable glassmorphism surface — the one visual signature reused across
+     cards, modals, and the (future) toolbar. Keep this the only place that
+     defines it so the look stays consistent as features are added. */
+  .glass {
+    @apply bg-white/60 dark:bg-white/5 backdrop-blur-glass border border-border dark:border-border-dark shadow-glass;
+  }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-slide-up {
+  animation: slideUp 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
