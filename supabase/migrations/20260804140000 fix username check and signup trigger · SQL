@@ -1,0 +1,75 @@
+/*
+# Fix registration failure: username availability check + duplicate-username crash
+
+## Problem
+1. The Register screen calls a plain `SELECT` on `profiles` to check if a
+   username is taken. RLS on `profiles` only allows an authenticated user
+   to read their OWN row (`auth.uid() = id`). Since the person filling the
+   register form isn't signed in yet, this SELECT is always blocked by RLS
+   and silently returns no data — the "is this username taken?" check has
+   never actually worked.
+2. The `handle_new_user` trigger (fires AFTER INSERT on auth.users) only
+   guards against a conflict on the `id` column
+   (`ON CONFLICT (id) DO NOTHING`). It does NOT guard the separate unique
+   index on `lower(username)`. If someone signs up with a username that's
+   already taken (any case), the INSERT into `profiles` raises an
+   unhandled unique-violation *inside* the trigger. Because the trigger
+   runs in the same transaction as the `auth.users` insert, that whole
+   transaction rolls back — the user never gets created — and Supabase
+   returns a generic "Database error saving new user" to the client,
+   which the Register page shows as "Registration failed".
+
+## Fix
+- `check_username_available(p_username)`: a SECURITY DEFINER RPC that
+  safely reports whether a username is free, without exposing any other
+  profile data. Callable by anon (pre-signup) and authenticated users.
+- `handle_new_user`: now catches a username unique_violation and re-raises
+  a clear, user-facing error ('Username is already taken...') instead of
+  letting the transaction fail with a generic database error.
+*/
+
+-- 1. Public, safe username-availability check (bypasses RLS on purpose,
+--    exposes only a boolean, nothing else from the profiles table).
+CREATE OR REPLACE FUNCTION public.check_username_available(p_username text)
+RETURNS boolean AS $$
+  SELECT NOT EXISTS (
+    SELECT 1 FROM public.profiles WHERE lower(username) = lower(p_username)
+  );
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+
+GRANT EXECUTE ON FUNCTION public.check_username_available(text) TO anon, authenticated;
+
+-- 2. Make handle_new_user resilient to a duplicate username instead of
+--    silently rolling back the whole signup with a generic DB error.
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+DECLARE
+  v_full_name text;
+  v_username  text;
+  v_role      text;
+BEGIN
+  v_full_name := COALESCE(NEW.raw_user_meta_data->>'full_name', '');
+  v_username  := COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1));
+  v_role      := COALESCE(NEW.raw_user_meta_data->>'role', 'student');
+
+  -- Reject admin self-assignment at signup
+  IF v_role = 'admin' THEN
+    v_role := 'student';
+  END IF;
+
+  -- Only student/teacher/admin allowed; default to student otherwise
+  IF v_role NOT IN ('student', 'teacher', 'admin') THEN
+    v_role := 'student';
+  END IF;
+
+  BEGIN
+    INSERT INTO public.profiles (id, full_name, username, email, role)
+    VALUES (NEW.id, v_full_name, v_username, NEW.email, v_role)
+    ON CONFLICT (id) DO NOTHING;
+  EXCEPTION WHEN unique_violation THEN
+    RAISE EXCEPTION 'Username is already taken. Please choose another.';
+  END;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
