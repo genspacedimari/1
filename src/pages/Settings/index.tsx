@@ -356,7 +356,6 @@ export default function SettingsPage() {
                     <StackRow icon={Save} label={t('autosave_label')} description={t('autosave_desc')}>
                       <Segmented
                         aria-label={t('autosave_label')}
-                        fullWidth
                         value={s.autoSave}
                         onChange={(v) => s.update({ autoSave: v })}
                         options={[
@@ -445,7 +444,6 @@ export default function SettingsPage() {
                     <StackRow icon={Gauge} label={t('scantime_label')} description={t('scantime_desc')}>
                       <Segmented
                         aria-label={t('scantime_label')}
-                        fullWidth
                         value={s.defaultScanTime}
                         onChange={(v) => s.update({ defaultScanTime: v })}
                         options={[
@@ -504,7 +502,6 @@ export default function SettingsPage() {
                     <StackRow icon={ZoomIn} label={t('zoom_label')} description={t('zoom_desc')}>
                       <Segmented
                         aria-label={t('zoom_label')}
-                        fullWidth
                         value={s.defaultZoom}
                         onChange={(v) => s.update({ defaultZoom: v })}
                         options={[
@@ -531,7 +528,6 @@ export default function SettingsPage() {
                     <StackRow icon={Grid2x2} label={t('gridsize_label')} description={t('gridsize_desc')}>
                       <Segmented
                         aria-label={t('gridsize_label')}
-                        fullWidth
                         value={s.gridSize}
                         onChange={(v) => s.update({ gridSize: v })}
                         options={[
@@ -562,7 +558,6 @@ export default function SettingsPage() {
                     <StackRow icon={History} label={t('undolimit_label')} description={t('undolimit_desc')}>
                       <Segmented
                         aria-label={t('undolimit_label')}
-                        fullWidth
                         value={s.undoHistoryLimit}
                         onChange={(v) => s.update({ undoHistoryLimit: v })}
                         options={[
