@@ -3,28 +3,29 @@ import { motion } from 'framer-motion';
 import { Chrome as Home, Cpu, User, Settings, Presentation } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAuthStore } from '@/stores/authStore';
+import { useT, type TranslationKey } from '@/i18n/translations';
 
 interface NavItem {
   to: string;
-  label: string;
+  labelKey: TranslationKey;
   icon: typeof Home;
   end?: boolean;
 }
 
 /** Base nav — available to everyone (authenticated + guest). */
 const BASE_NAV: NavItem[] = [
-  { to: '/', label: 'Home', icon: Home, end: true },
-  { to: '/simulator', label: 'Simulator', icon: Cpu },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/', labelKey: 'nav_home', icon: Home, end: true },
+  { to: '/simulator', labelKey: 'nav_simulator', icon: Cpu },
+  { to: '/settings', labelKey: 'nav_settings', icon: Settings },
 ];
 
 /** Profile entry — different label/icon for guest vs signed-in. */
 function profileNav(isGuest: boolean): NavItem {
-  return { to: '/profile', label: isGuest ? 'Guest' : 'Profile', icon: User };
+  return { to: '/profile', labelKey: isGuest ? 'nav_guest' : 'nav_profile', icon: User };
 }
 
 /** Teacher nav — only shown to authenticated teachers. */
-const TEACHER_NAV: NavItem = { to: '/teacher', label: 'Teacher', icon: Presentation };
+const TEACHER_NAV: NavItem = { to: '/teacher', labelKey: 'nav_teacher', icon: Presentation };
 
 function buildNav(isGuest: boolean, role?: string): NavItem[] {
   const items = [...BASE_NAV, profileNav(isGuest)];
@@ -39,6 +40,7 @@ export function SidebarNav() {
   const isGuest = useAuthStore((s) => s.isGuest);
   const role = useAuthStore((s) => s.profile?.role);
   const items = buildNav(isGuest, role);
+  const { t } = useT();
 
   return (
     <nav className="hidden md:flex md:w-20 lg:w-56 shrink-0 flex-col gap-1 border-r border-border dark:border-border-dark p-3 lg:p-4">
@@ -62,7 +64,7 @@ export function SidebarNav() {
           }
         >
           <item.icon size={20} strokeWidth={2.25} />
-          <span className="hidden lg:inline">{item.label}</span>
+          <span className="hidden lg:inline">{t(item.labelKey)}</span>
         </NavLink>
       ))}
     </nav>
@@ -73,6 +75,7 @@ export function BottomNav() {
   const isGuest = useAuthStore((s) => s.isGuest);
   const role = useAuthStore((s) => s.profile?.role);
   const items = buildNav(isGuest, role);
+  const { t } = useT();
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md items-center justify-around gap-1 p-2 md:hidden">
@@ -99,7 +102,7 @@ export function BottomNav() {
                   className={isActive ? 'text-primary' : 'text-muted-foreground'}
                 />
                 <span className={isActive ? 'text-primary' : 'text-muted-foreground'}>
-                  {item.label}
+                  {t(item.labelKey)}
                 </span>
               </>
             )}
