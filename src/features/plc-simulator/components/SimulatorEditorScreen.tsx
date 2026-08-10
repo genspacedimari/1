@@ -28,7 +28,7 @@ interface SimulatorEditorScreenProps {
 // style wiring.
 // ===========================
 
-const DEFAULT_COLS = 7   // fits comfortably on a phone screen, per rung
+const DEFAULT_COLS = 5   // fits comfortably on a phone screen, per rung
 const MIN_COLS = 4
 const MAX_COLS = 24
 const CELL_W = 64
