@@ -103,44 +103,74 @@ const TOOLBAR_ITEMS: { id: ToolId; tooltip: string; color: string }[] = [
   { id: 'DELETE', tooltip: 'Delete Cell', color: '#EF4444' },
 ]
 
+// Modern minimal line-icon set for the component toolbar. Every icon shares
+// the same 24x24 grid, stroke width, and rounded caps/joins for a consistent,
+// clean look — while keeping the underlying IEC ladder-logic symbols (contact
+// bars, coil circle, NC slash, timer/counter blocks) intact and recognizable.
 function ToolIcon({ id, color }: { id: string; color: string }) {
-  const c = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 2 } as const
+  const c = {
+    width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: color,
+    strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round',
+  } as const
   switch (id) {
     case 'SELECT':
-      return <svg {...c}><path d="M5 3l6.5 16 2-6.7L20 10.3 5 3z" strokeLinejoin="round" strokeLinecap="round" /></svg>
+      // Rounded pointer/cursor — the universal "select" glyph, redrawn with
+      // softer, more symmetric geometry than a plain arrowhead.
+      return <svg {...c}><path d="M5 3.5l6.2 16.3 1.9-6.6 6.6-1.9L5 3.5z" fill={color} stroke={color} strokeWidth={1.2} /></svg>
+    case 'WIRE':
+      // A plain, clean rail segment — exactly what gets placed on the grid.
+      return <svg {...c}><line x1="2" y1="12" x2="22" y2="12" /></svg>
     case 'NO':
-      return <svg {...c}><line x1="1" y1="12" x2="8" y2="12" /><line x1="8" y1="6" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="18" /><line x1="16" y1="12" x2="23" y2="12" /></svg>
+      // IEC Normal-Open contact: two parallel bars, gap open (no slash).
+      return <svg {...c}><line x1="2" y1="12" x2="8" y2="12" /><line x1="8" y1="7" x2="8" y2="17" /><line x1="16" y1="7" x2="16" y2="17" /><line x1="16" y1="12" x2="22" y2="12" /></svg>
     case 'NC':
-      return <svg {...c}><line x1="1" y1="12" x2="8" y2="12" /><line x1="8" y1="6" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="18" /><line x1="10" y1="7" x2="14" y2="17" /><line x1="16" y1="12" x2="23" y2="12" /></svg>
+      // IEC Normal-Closed contact: same bars plus the diagonal slash through
+      // the gap — the one detail that must always read differently from NO.
+      return <svg {...c}><line x1="2" y1="12" x2="8" y2="12" /><line x1="8" y1="7" x2="8" y2="17" /><line x1="16" y1="7" x2="16" y2="17" /><line x1="9.5" y1="8" x2="14.5" y2="16" /><line x1="16" y1="12" x2="22" y2="12" /></svg>
     case 'COIL':
-      return <svg {...c}><line x1="1" y1="12" x2="6" y2="12" /><circle cx="12" cy="12" r="6" /><line x1="18" y1="12" x2="23" y2="12" /></svg>
+      return <svg {...c}><line x1="2" y1="12" x2="7" y2="12" /><circle cx="12" cy="12" r="6.5" /><line x1="17" y1="12" x2="22" y2="12" /></svg>
     case 'SET':
-      return <svg {...c}><circle cx="12" cy="12" r="7" /><text x="12" y="15.5" fontSize="8" fill={color} stroke="none" textAnchor="middle" fontFamily="monospace" fontWeight="bold">S</text></svg>
+      return <svg {...c}><circle cx="12" cy="12" r="7.5" /><text x="12" y="15.3" fontSize="9" fill={color} stroke="none" textAnchor="middle" fontFamily="'JetBrains Mono', monospace" fontWeight="700">S</text></svg>
     case 'RST':
-      return <svg {...c}><circle cx="12" cy="12" r="7" /><text x="12" y="15.5" fontSize="8" fill={color} stroke="none" textAnchor="middle" fontFamily="monospace" fontWeight="bold">R</text></svg>
+      return <svg {...c}><circle cx="12" cy="12" r="7.5" /><text x="12" y="15.3" fontSize="9" fill={color} stroke="none" textAnchor="middle" fontFamily="'JetBrains Mono', monospace" fontWeight="700">R</text></svg>
     case 'TON':
     case 'TOF':
     case 'TP':
-      return <svg {...c}><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="12" cy="12" r="3.6" /><line x1="12" y1="12" x2="12" y2="9.3" /><line x1="12" y1="12" x2="13.8" y2="13" /></svg>
+      // Rounded block with a compact clock face — reads as "timer" at a glance.
+      return <svg {...c}><rect x="3" y="5" width="18" height="14" rx="3.5" /><circle cx="12" cy="12" r="3.4" /><line x1="12" y1="12" x2="12" y2="9.6" /><line x1="12" y1="12" x2="13.6" y2="13" /></svg>
     case 'CTU':
-      return <svg {...c}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M8 15l4-6 4 6" strokeLinejoin="round" strokeLinecap="round" /></svg>
+      return <svg {...c}><rect x="3" y="5" width="18" height="14" rx="3.5" /><path d="M8.5 14.5l3.5-5 3.5 5" /></svg>
     case 'CTD':
-      return <svg {...c}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M8 9l4 6 4-6" strokeLinejoin="round" strokeLinecap="round" /></svg>
+      return <svg {...c}><rect x="3" y="5" width="18" height="14" rx="3.5" /><path d="M8.5 9.5l3.5 5 3.5-5" /></svg>
     case 'RES':
-      return <svg {...c}><path d="M3.5 12a8.5 8.5 0 1 0 2.4-5.9" strokeLinecap="round" /><path d="M3 3.5v5h5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      // Counter-clockwise reset arrow — same "undo-style" glyph used
+      // everywhere else for "clear back to zero".
+      return <svg {...c}><path d="M4 12a8 8 0 1 1 2.6 5.9" /><path d="M3.5 8.5L4 12l3.6-1" /></svg>
     case 'MEM':
-      return <svg {...c}><rect x="4" y="4" width="16" height="16" rx="2" /><text x="12" y="15.5" fontSize="9" fill={color} stroke="none" textAnchor="middle" fontFamily="monospace" fontWeight="bold">M</text></svg>
-    case 'WIRE':
-      return <svg {...c}><line x1="2" y1="12" x2="22" y2="12" strokeLinecap="round" /></svg>
+      return <svg {...c}><rect x="4" y="4" width="16" height="16" rx="3.5" /><text x="12" y="15.3" fontSize="9.5" fill={color} stroke="none" textAnchor="middle" fontFamily="'JetBrains Mono', monospace" fontWeight="700">M</text></svg>
     case 'BRANCH':
       // Tee / junction symbol — a horizontal wire with a vertical drop, exactly
       // how CX-Programmer marks the start of a parallel branch: ────┬────
-      return <svg {...c}><line x1="2" y1="8" x2="22" y2="8" strokeLinecap="round" /><line x1="12" y1="8" x2="12" y2="19" strokeLinecap="round" /><circle cx="12" cy="8" r="1.6" fill={color} stroke="none" /></svg>
+      return <svg {...c}><line x1="2" y1="8" x2="22" y2="8" /><line x1="12" y1="8" x2="12" y2="19" /><circle cx="12" cy="8" r="1.8" fill={color} stroke="none" /></svg>
     case 'DELETE':
-      return <svg {...c}><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      return <TrashIcon size={22} color={color} />
     default:
       return null
   }
+}
+
+// Shared modern trash-can glyph, reused by the DELETE tool and the
+// "Delete Rung" FAB action so both read as the same clear, minimal icon.
+function TrashIcon({ size = 18, color }: { size?: number; color: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 7h14" />
+      <path d="M9.5 7V4.8A1.3 1.3 0 0 1 10.8 3.5h2.4A1.3 1.3 0 0 1 14.5 4.8V7" />
+      <path d="M7 7l1 12.2A1.8 1.8 0 0 0 9.8 21h4.4a1.8 1.8 0 0 0 1.8-1.8L17 7" />
+      <line x1="10.3" y1="11" x2="10.3" y2="16.5" />
+      <line x1="13.7" y1="11" x2="13.7" y2="16.5" />
+    </svg>
+  )
 }
 
 function CellSVG({ cell, isActive, conducts, isDark, isEmpty, error }: { cell: CellSlot; isActive: boolean; conducts?: boolean; isDark: boolean; isEmpty?: boolean; error?: boolean }) {
@@ -179,21 +209,21 @@ function CellSVG({ cell, isActive, conducts, isDark, isEmpty, error }: { cell: C
     case 'NO':
       return (
         <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" {...dashProps} />
+          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
           <line x1="18" y1="12" x2="18" y2="28" stroke={contactStroke} strokeWidth="2" strokeLinecap="round" />
           <line x1="46" y1="12" x2="46" y2="28" stroke={contactStroke} strokeWidth="2" strokeLinecap="round" />
-          <line x1="46" y1="20" x2={CELL_W} y2="20" stroke={passes ? '#22C55E' : lineColor} strokeWidth="1.5" {...(passes ? contactDash : {})} />
+          <line x1="46" y1="20" x2={CELL_W} y2="20" stroke={passes ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" {...(passes ? contactDash : {})} />
           <text x="32" y="10" textAnchor="middle" fontSize="9" fill={contactStroke} fontFamily="JetBrains Mono">{cell.address}</text>
         </svg>
       )
     case 'NC':
       return (
         <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" {...dashProps} />
+          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
           <line x1="18" y1="12" x2="18" y2="28" stroke={contactStroke} strokeWidth="2" strokeLinecap="round" />
           <line x1="46" y1="12" x2="46" y2="28" stroke={contactStroke} strokeWidth="2" strokeLinecap="round" />
           <line x1="22" y1="12" x2="42" y2="28" stroke={contactStroke} strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="46" y1="20" x2={CELL_W} y2="20" stroke={passes ? '#22C55E' : lineColor} strokeWidth="1.5" {...(passes ? contactDash : {})} />
+          <line x1="46" y1="20" x2={CELL_W} y2="20" stroke={passes ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" {...(passes ? contactDash : {})} />
           <text x="32" y="10" textAnchor="middle" fontSize="9" fill={contactStroke} fontFamily="JetBrains Mono">{cell.address}</text>
         </svg>
       )
@@ -202,13 +232,13 @@ function CellSVG({ cell, isActive, conducts, isDark, isEmpty, error }: { cell: C
     case 'RST':
       return (
         <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" {...dashProps} />
+          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
           <circle cx="32" cy="20" r="10" fill="none" stroke={isActive ? '#22C55E' : stroke} strokeWidth="2" />
           {isActive && <circle cx="32" cy="20" r="10" fill="#22C55E22" />}
           <text x="32" y="24" textAnchor="middle" fontSize="8" fill={isActive ? '#22C55E' : stroke} fontFamily="JetBrains Mono" fontWeight="bold">
             {cell.type === 'COIL' ? '' : cell.type}
           </text>
-          <line x1="42" y1="20" x2={CELL_W} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" />
+          <line x1="42" y1="20" x2={CELL_W} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
           <text x="32" y="10" textAnchor="middle" fontSize="9" fill={isActive ? '#22C55E' : stroke} fontFamily="JetBrains Mono">{cell.address}</text>
         </svg>
       )
@@ -217,48 +247,48 @@ function CellSVG({ cell, isActive, conducts, isDark, isEmpty, error }: { cell: C
     case 'TP':
       return (
         <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2="10" y2="20" stroke={flowStroke} strokeWidth="1.5" {...dashProps} />
-          <rect x="10" y="8" width="44" height="24" rx="3" fill={isActive ? '#D9770620' : isDark ? '#2D1A00' : '#FFF8EE'} stroke="#D97706" strokeWidth="1.5" />
+          <line x1="0" y1="20" x2="10" y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
+          <rect x="10" y="8" width="44" height="24" rx="4" fill={isActive ? '#D9770620' : isDark ? '#2D1A00' : '#FFF8EE'} stroke="#D97706" strokeWidth="1.5" />
           <text x="32" y="18" textAnchor="middle" fontSize="9" fill="#D97706" fontFamily="JetBrains Mono" fontWeight="600">{cell.type}</text>
           <text x="32" y="29" textAnchor="middle" fontSize="8" fill="#D97706" fontFamily="JetBrains Mono">{cell.preset || 0}{cell.timeUnit || 'ms'}</text>
-          <line x1="54" y1="20" x2={CELL_W} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" />
+          <line x1="54" y1="20" x2={CELL_W} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       )
     case 'CTU':
     case 'CTD':
       return (
         <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2="10" y2="20" stroke={flowStroke} strokeWidth="1.5" {...dashProps} />
-          <rect x="10" y="8" width="44" height="24" rx="3" fill={isDark ? '#001A2D' : '#EFF6FF'} stroke="#2563EB" strokeWidth="1.5" />
+          <line x1="0" y1="20" x2="10" y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
+          <rect x="10" y="8" width="44" height="24" rx="4" fill={isDark ? '#001A2D' : '#EFF6FF'} stroke="#2563EB" strokeWidth="1.5" />
           <text x="32" y="18" textAnchor="middle" fontSize="9" fill="#2563EB" fontFamily="JetBrains Mono" fontWeight="600">{cell.type}</text>
           <text x="32" y="29" textAnchor="middle" fontSize="8" fill="#2563EB" fontFamily="JetBrains Mono">PV:{cell.preset || 0}</text>
-          <line x1="54" y1="20" x2={CELL_W} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" />
+          <line x1="54" y1="20" x2={CELL_W} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       )
     case 'MEM':
       return (
         <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" {...dashProps} />
-          <rect x="18" y="10" width="28" height="20" rx="3" fill="none" stroke={contactStroke} strokeWidth="1.5" />
+          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
+          <rect x="18" y="10" width="28" height="20" rx="4" fill="none" stroke={contactStroke} strokeWidth="1.5" />
           <text x="32" y="23" textAnchor="middle" fontSize="9" fill={contactStroke} fontFamily="JetBrains Mono" fontWeight="bold">M</text>
-          <line x1="46" y1="20" x2={CELL_W} y2="20" stroke={passes ? '#22C55E' : lineColor} strokeWidth="1.5" />
+          <line x1="46" y1="20" x2={CELL_W} y2="20" stroke={passes ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
           <text x="32" y="9" textAnchor="middle" fontSize="8" fill={contactStroke} fontFamily="JetBrains Mono">{cell.address}</text>
         </svg>
       )
     case 'RES':
       return (
         <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" {...dashProps} />
+          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
           <circle cx="32" cy="20" r="10" fill="none" stroke={stroke} strokeWidth="2" />
           <text x="32" y="24" textAnchor="middle" fontSize="7" fill={stroke} fontFamily="JetBrains Mono" fontWeight="bold">RES</text>
-          <line x1="42" y1="20" x2={CELL_W} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" />
+          <line x1="42" y1="20" x2={CELL_W} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
           <text x="32" y="10" textAnchor="middle" fontSize="9" fill={stroke} fontFamily="JetBrains Mono">{cell.address}</text>
         </svg>
       )
     case 'WIRE':
       return (
         <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2={CELL_W} y2="20" stroke={flowStroke} strokeWidth="2" {...dashProps} />
+          <line x1="0" y1="20" x2={CELL_W} y2="20" stroke={flowStroke} strokeWidth="2" strokeLinecap="round" {...dashProps} />
         </svg>
       )
     default:
@@ -1064,9 +1094,8 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
           </svg>
         </button>
         <button onClick={() => handleSaveRef.current()} style={iconBtnStyle(isDark)} title="Save (Ctrl+S)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={text} strokeWidth="2">
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-            <polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 3.5h12a1 1 0 0 1 1 1V20l-7-4-7 4V4.5a1 1 0 0 1 1-1z" />
           </svg>
         </button>
         <div style={{ position: 'relative' }}>
@@ -1096,7 +1125,7 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
             display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
             fontFamily: 'Inter', fontWeight: 700, fontSize: 13, color: '#fff',
           }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="1" strokeLinejoin="round"><path d="M6 3.8a1 1 0 0 1 1.5-.87l13 8.2a1 1 0 0 1 0 1.74l-13 8.2A1 1 0 0 1 6 20.2z" /></svg>
             RUN
           </button>
         ) : (
@@ -1105,7 +1134,7 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
             display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
             fontFamily: 'Inter', fontWeight: 700, fontSize: 13, color: '#fff',
           }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><rect x="6" y="4" width="4" height="16" rx="1.5" /><rect x="14" y="4" width="4" height="16" rx="1.5" /></svg>
             STOP
           </button>
         )}
@@ -1595,16 +1624,16 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
         {fabOpen && (
           <>
             <FabMiniButton className="ge-fab-item" label="Delete Rung" color="#EF4444" onClick={deleteRungFab} isDark={isDark}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <TrashIcon size={16} color="#EF4444" />
             </FabMiniButton>
             <FabMiniButton className="ge-fab-item" label="Duplicate Rung" color="#2563EB" onClick={duplicateRung} isDark={isDark}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2"><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M4 16V5a1 1 0 0 1 1-1h11" /></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="8" width="12" height="12" rx="2.5" /><path d="M4 16V5a1 1 0 0 1 1-1h11" /></svg>
             </FabMiniButton>
             <FabMiniButton className="ge-fab-item" label="Insert Branch" color="#6B7280" onClick={insertBranchFab} isDark={isDark}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><line x1="2" y1="12" x2="9" y2="12" /><line x1="9" y1="6" x2="9" y2="18" /><line x1="9" y1="6" x2="22" y2="6" /><line x1="9" y1="18" x2="22" y2="18" /></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="2" y1="12" x2="9" y2="12" /><line x1="9" y1="6" x2="9" y2="18" /><line x1="9" y1="6" x2="22" y2="6" /><line x1="9" y1="18" x2="22" y2="18" /></svg>
             </FabMiniButton>
             <FabMiniButton className="ge-fab-item" label="Add Rung" color="#F59E0B" onClick={addRung} isDark={isDark}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19" strokeLinecap="round" /><line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" /></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             </FabMiniButton>
           </>
         )}
@@ -1787,7 +1816,7 @@ function ComponentSelectionSheet({ isDark, onSelect, onClose }: {
               cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minHeight: 80,
             }}
           >
-            <span style={{ fontSize: 16, fontWeight: 700, color: comp.color, fontFamily: 'JetBrains Mono' }}>{comp.short}</span>
+            <ToolIcon id={comp.type} color={comp.color} />
             <span style={{ fontSize: 10, color: text, fontFamily: 'Inter', textAlign: 'center', lineHeight: 1.3 }}>{comp.label}</span>
           </button>
         ))}
