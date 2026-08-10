@@ -1481,18 +1481,60 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
         </button>
 
         {bottomPanelOpen && (
-          <div style={{ padding: '4px 16px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, overflowY: 'auto', maxHeight: 140 }}>
+          <div style={{ padding: '4px 16px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, overflowY: 'auto', maxHeight: 220 }}>
             {[
-              { label: 'I/O', value: usedInputAddrs[0] ? `${usedInputAddrs[0]}:${inputs[usedInputAddrs[0]] ? 'ON' : 'OFF'}` : '--', color: usedInputAddrs[0] && inputs[usedInputAddrs[0]] ? '#22C55E' : muted },
-              { label: 'OUTPUT', value: usedOutputAddrs[0] ? `${usedOutputAddrs[0]}:${memory[usedOutputAddrs[0]] ? 'ON' : 'OFF'}` : '--', color: usedOutputAddrs[0] && memory[usedOutputAddrs[0]] ? '#22C55E' : muted },
-              { label: 'TIMER', value: timerAddrs[0] ? `${timerAddrs[0]}:${timers[timerAddrs[0]]?.acc ?? 0}` : '--', color: '#D97706' },
-              { label: 'COUNTER', value: counterAddrs[0] ? `${counterAddrs[0]}:${counters[counterAddrs[0]]?.cv ?? 0}` : '--', color: '#2563EB' },
-              { label: 'MEMORY', value: usedMemoryAddrs[0] ? `${usedMemoryAddrs[0]}:${memory[usedMemoryAddrs[0]] ? '1' : '0'}` : '--', color: muted },
-              { label: 'SCAN', value: running ? `${TICK_MS / 10}ms` : '--', color: running ? '#22C55E' : muted },
+              {
+                label: 'I/O',
+                // Show every used input address, not just the first one, so
+                // e.g. I1 and I26 both appear when both are used on the ladder.
+                entries: usedInputAddrs.map(addr => ({
+                  text: `${addr}:${inputs[addr] ? 'ON' : 'OFF'}`,
+                  color: inputs[addr] ? '#22C55E' : muted,
+                })),
+              },
+              {
+                label: 'OUTPUT',
+                // Same fix for outputs: list every used output address (e.g. O2 and O24).
+                entries: usedOutputAddrs.map(addr => ({
+                  text: `${addr}:${memory[addr] ? 'ON' : 'OFF'}`,
+                  color: memory[addr] ? '#22C55E' : muted,
+                })),
+              },
+              {
+                label: 'TIMER',
+                entries: timerAddrs.map(addr => ({
+                  text: `${addr}:${timers[addr]?.acc ?? 0}`,
+                  color: '#D97706',
+                })),
+              },
+              {
+                label: 'COUNTER',
+                entries: counterAddrs.map(addr => ({
+                  text: `${addr}:${counters[addr]?.cv ?? 0}`,
+                  color: '#2563EB',
+                })),
+              },
+              {
+                label: 'MEMORY',
+                entries: usedMemoryAddrs.map(addr => ({
+                  text: `${addr}:${memory[addr] ? '1' : '0'}`,
+                  color: muted,
+                })),
+              },
+              {
+                label: 'SCAN',
+                entries: [{ text: running ? `${TICK_MS / 10}ms` : '--', color: running ? '#22C55E' : muted }],
+              },
             ].map((item, i) => (
               <div key={i} style={{ backgroundColor: isDark ? '#2D2D2D' : '#F7F7F7', borderRadius: 8, padding: '6px 10px', border: `1px solid ${border}` }}>
                 <p style={{ margin: 0, fontSize: 9, color: muted, fontFamily: 'JetBrains Mono', letterSpacing: 0.5 }}>{item.label}</p>
-                <p style={{ margin: '2px 0 0', fontSize: 12, fontWeight: 700, color: item.color, fontFamily: 'JetBrains Mono' }}>{item.value}</p>
+                {item.entries.length === 0 ? (
+                  <p style={{ margin: '2px 0 0', fontSize: 12, fontWeight: 700, color: muted, fontFamily: 'JetBrains Mono' }}>--</p>
+                ) : (
+                  item.entries.map((entry, j) => (
+                    <p key={j} style={{ margin: '2px 0 0', fontSize: 12, fontWeight: 700, color: entry.color, fontFamily: 'JetBrains Mono' }}>{entry.text}</p>
+                  ))
+                )}
               </div>
             ))}
           </div>
