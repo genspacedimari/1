@@ -465,6 +465,57 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
   const workspaceRef = useRef<HTMLDivElement>(null)
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(t => (t === msg ? null : t)), 2200) }
 
+  // ===== Pinch-to-zoom (two-finger touch) — replaces the old +/- zoom buttons =====
+  // Keeps the same 0.6–1.5 zoom range the buttons used to enforce.
+  const zoomRef = useRef(zoom)
+  useEffect(() => { zoomRef.current = zoom }, [zoom])
+
+  useEffect(() => {
+    const el = workspaceRef.current
+    if (!el) return
+
+    let pinchStartDist: number | null = null
+    let pinchStartZoom = 1
+
+    const touchDist = (touches: TouchList) => {
+      const dx = touches[0].clientX - touches[1].clientX
+      const dy = touches[0].clientY - touches[1].clientY
+      return Math.hypot(dx, dy)
+    }
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        pinchStartDist = touchDist(e.touches)
+        pinchStartZoom = zoomRef.current
+      }
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && pinchStartDist) {
+        // Only two-finger moves are hijacked for zoom; single-finger scrolling
+        // (vertical list scroll, horizontal rung scroll) is left untouched.
+        e.preventDefault()
+        const scale = touchDist(e.touches) / pinchStartDist
+        const next = Math.min(1.5, Math.max(0.6, pinchStartZoom * scale))
+        setZoom(next)
+      }
+    }
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinchStartDist = null
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    el.addEventListener('touchend', onTouchEnd, { passive: true })
+    el.addEventListener('touchcancel', onTouchEnd, { passive: true })
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
+      el.removeEventListener('touchcancel', onTouchEnd)
+    }
+  }, [])
+
   // ===== Live simulation state (local to this screen only) =====
   // Starts empty — the set of usable input addresses is derived dynamically
   // from whatever the ladder actually uses (see `usedInputAddrs` below), not
@@ -1166,6 +1217,9 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
           backgroundColor: workspace,
           position: 'relative',
           padding: '8px 0',
+          // Let the browser handle normal vertical scrolling, but leave pinch
+          // (2-finger) gestures to our own touch handlers below for zoom.
+          touchAction: 'pan-y',
         }}
       >
         {running && (
@@ -1177,11 +1231,6 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
             <span style={{ fontSize: 11, color: '#22C55E', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>RUNNING · Scan: {TICK_MS / 10}ms</span>
           </div>
         )}
-
-        <div style={{ position: 'absolute', right: 12, top: running ? 40 : 12, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 20 }}>
-          <button className="ge-btn" onClick={() => setZoom(z => Math.min(z + 0.1, 1.5))} style={zoomBtnStyle(isDark)}>+</button>
-          <button className="ge-btn" onClick={() => setZoom(z => Math.max(z - 0.1, 0.6))} style={zoomBtnStyle(isDark)}>−</button>
-        </div>
 
         {/* SINGLE horizontal scrollbar for the entire editor — every rung scrolls together, like CX-Programmer */}
         <div style={{ overflowX: 'auto', overflowY: 'hidden' }}>
@@ -1671,15 +1720,6 @@ function iconBtnStyle(_isDark: boolean) {
   return {
     width: 40, height: 40, borderRadius: 10, border: 'none', backgroundColor: 'transparent',
     display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
-  } as React.CSSProperties
-}
-
-function zoomBtnStyle(isDark: boolean) {
-  return {
-    width: 32, height: 32, borderRadius: 8, border: `1px solid ${isDark ? '#404040' : '#E0E0E0'}`,
-    backgroundColor: isDark ? '#2A2A2A' : '#FFFFFF', color: isDark ? '#F5F5F5' : '#1C1C1C',
-    fontSize: 18, fontWeight: 300, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
   } as React.CSSProperties
 }
 
