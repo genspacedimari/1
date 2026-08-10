@@ -1082,13 +1082,13 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
         }}>{projectName}</span>
 
         <button onClick={undo} disabled={!canUndo} style={{ ...iconBtnStyle(isDark), opacity: canUndo ? 1 : 0.3, cursor: canUndo ? 'pointer' : 'default' }} title="Undo (Ctrl+Z)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={canUndo ? text : muted} strokeWidth="2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={text} strokeWidth="2">
             <path d="M3 7v6h6" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M3 13A9 9 0 1 0 5.27 6.5" strokeLinecap="round" />
           </svg>
         </button>
         <button onClick={redo} disabled={!canRedo} style={{ ...iconBtnStyle(isDark), opacity: canRedo ? 1 : 0.3, cursor: canRedo ? 'pointer' : 'default' }} title="Redo (Ctrl+Y)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={canRedo ? text : muted} strokeWidth="2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={text} strokeWidth="2">
             <path d="M21 7v6h-6" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M21 13A9 9 0 1 1 18.73 6.5" strokeLinecap="round" />
           </svg>
@@ -1172,7 +1172,7 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
               justifyContent: 'center',
             }}
           >
-            <ToolIcon id={item.id as string} color={selectedTool === item.id ? item.color : muted} />
+            <ToolIcon id={item.id as string} color={selectedTool === item.id ? item.color : text} />
           </button>
         ))}
       </div>
