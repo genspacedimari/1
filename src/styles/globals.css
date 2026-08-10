@@ -47,3 +47,27 @@
 .animate-slide-up {
   animation: slideUp 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* Settings > Animations = OFF — force every CSS transition/animation in the
+   app to resolve instantly. Framer Motion elements are handled separately
+   via <MotionConfig reducedMotion> in App.tsx; this covers plain Tailwind
+   `transition-*` utilities (switches, segmented controls, buttons, etc). */
+html[data-animations='off'] *,
+html[data-animations='off'] *::before,
+html[data-animations='off'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Horizontally-scrollable tab strips (Settings section picker) — native,
+   scrollbar-free swipe on mobile while staying fully keyboard/mouse
+   scrollable everywhere else. */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
