@@ -78,7 +78,10 @@ export function BottomNav() {
   const { t } = useT();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md items-center justify-around gap-1 p-2 md:hidden">
+    <nav
+      className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md items-center justify-around gap-1 p-2 md:hidden"
+      style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
+    >
       <div className="glass flex w-full items-center justify-around rounded-3xl px-2 py-2">
         {items.map((item) => (
           <NavLink
