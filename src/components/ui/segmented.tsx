@@ -11,7 +11,7 @@ export function Segmented<T extends string | number>({ value, options, onChange,
   return (
     <div
       role="radiogroup"
-      className="inline-flex rounded-2xl bg-muted p-1 dark:bg-white/5"
+      className="inline-flex max-w-full flex-wrap gap-0.5 rounded-2xl bg-muted p-1 dark:bg-white/5 sm:flex-nowrap sm:gap-0"
       {...rest}
     >
       {options.map((opt) => (
@@ -22,12 +22,11 @@ export function Segmented<T extends string | number>({ value, options, onChange,
           aria-checked={value === opt.value}
           onClick={() => onChange(opt.value)}
           className={cn(
-            'rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-200',
+            'flex min-h-[44px] items-center justify-center rounded-xl px-2.5 py-1.5 text-xs font-medium leading-tight transition-all duration-200 sm:min-h-[36px] sm:px-3',
             value === opt.value
               ? 'bg-primary text-primary-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
           )}
-          style={{ minHeight: 36 }}
         >
           {opt.label}
         </button>
