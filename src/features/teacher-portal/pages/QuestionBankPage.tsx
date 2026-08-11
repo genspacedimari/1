@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, Search, MoreVertical, Copy, Archive, Trash2, Eye, RotateCcw, Download, Upload, FileText, FolderOpen, FileQuestion, ClipboardList } from 'lucide-react';
+import { Plus, Search, MoreVertical, Copy, Archive, Trash2, Eye, RotateCcw, Download, Upload, FolderOpen, ClipboardList } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useTeacherStore } from '../store';
 import { exportQuestionsJSON, exportQuestionsCSV, exportQuestionsExcel } from '../importExport';
-import { QUESTION_TYPE_LABELS, DIFFICULTY_LABELS, type Difficulty, type QuestionType } from '../types';
+import { QUESTION_TYPE_LABELS, DIFFICULTY_LABELS, type Difficulty, type QuestionType, type Question } from '../types';
 import { cn } from '@/utils/cn';
 
 type SortBy = 'newest' | 'oldest' | 'points';
@@ -86,7 +86,7 @@ export function QuestionBankPage() {
   );
 }
 
-function QuestionRow({q,diffColor,menuOpen,setMenuOpen,onEdit,onDuplicate,onArchive,onDelete}:{q:any;diffColor:Record<Difficulty,string>;menuOpen:string|null;setMenuOpen:(v:string|null)=>void;onEdit:()=>void;onDuplicate:()=>void;onArchive:()=>void;onDelete:()=>void}){
+function QuestionRow({q,diffColor,menuOpen,setMenuOpen,onEdit,onDuplicate,onArchive,onDelete}:{q:Question;diffColor:Record<Difficulty,string>;menuOpen:string|null;setMenuOpen:(v:string|null)=>void;onEdit:()=>void;onDuplicate:()=>void;onArchive:()=>void;onDelete:()=>void}){
   return <div className="flex items-start justify-between gap-3 border-b border-border p-4 last:border-b-0 dark:border-border-dark"><div className="min-w-0 flex-1 cursor-pointer" onClick={onEdit}><div className="mb-1 flex flex-wrap items-center gap-2"><Badge variant="outline">{QUESTION_TYPE_LABELS[q.type]}</Badge><Badge variant={diffColor[q.difficulty] as any}>{DIFFICULTY_LABELS[q.difficulty]}</Badge><span className="text-xs text-muted-foreground">{q.points} pts</span></div><p className="text-sm font-medium">{q.question}</p></div><div className="relative"><button onClick={()=>setMenuOpen(menuOpen===q.id?null:q.id)} className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/40"><MoreVertical size={18}/></button>{menuOpen===q.id&&<><div className="fixed inset-0 z-20" onClick={()=>setMenuOpen(null)}/><div className="absolute right-0 top-10 z-30 w-44 rounded-2xl border border-border bg-surface py-1 shadow-lg dark:border-border-dark dark:bg-surface-dark"><MenuItem icon={Eye} label="Preview" onClick={onEdit}/><MenuItem icon={Copy} label="Duplicate" onClick={onDuplicate}/><MenuItem icon={q.archived?RotateCcw:Archive} label={q.archived?'Restore':'Archive'} onClick={onArchive}/><MenuItem icon={Trash2} label="Delete" danger onClick={onDelete}/></div></>}</div></div>
 }
 function MenuItem({icon:Icon,label,onClick,danger=false}:{icon:any;label:string;onClick:()=>void;danger?:boolean}){return <button onClick={()=>onClick()} className={cn('flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-muted/30',danger&&'text-red-500')}><Icon size={15}/>{label}</button>}
