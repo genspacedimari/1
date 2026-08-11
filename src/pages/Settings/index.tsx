@@ -60,14 +60,14 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 px-4 py-3.5 sm:gap-4 sm:px-5 sm:py-4">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Icon size={18} />
+    <div className="flex items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">
+      <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary sm:h-9 sm:w-9">
+          <Icon size={17} strokeWidth={2.25} />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium leading-tight">{label}</p>
-          {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+          <p className="text-[13.5px] font-medium leading-tight sm:text-sm">{label}</p>
+          {description && <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground sm:text-xs">{description}</p>}
         </div>
       </div>
       <div className="shrink-0">{children}</div>
@@ -93,14 +93,14 @@ function StackRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Icon size={18} />
+    <div className="flex flex-col gap-2.5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
+      <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary sm:h-9 sm:w-9">
+          <Icon size={17} strokeWidth={2.25} />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium leading-tight">{label}</p>
-          {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+          <p className="text-[13.5px] font-medium leading-tight sm:text-sm">{label}</p>
+          {description && <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground sm:text-xs">{description}</p>}
         </div>
       </div>
       <div className="w-full sm:w-auto">{children}</div>
@@ -114,7 +114,7 @@ function Divider() {
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <h2 className="mb-2 mt-5 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:mt-6">
+    <h2 className="mb-1.5 mt-4 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:mb-2 sm:mt-6 sm:text-xs">
       {title}
     </h2>
   );
@@ -296,27 +296,37 @@ export default function SettingsPage() {
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show" className="mx-auto max-w-4xl">
-      {/* Section selector — horizontal scroll on mobile, sidebar on desktop */}
-      <div className="mb-5 flex gap-2 overflow-x-auto scrollbar-hide pb-1 sm:mb-6 md:hidden">
-        {SECTIONS.map((sec) => (
-          <button
-            key={sec.id}
-            onClick={() => {
-              clickFx();
-              setActiveSection(sec.id);
-            }}
-            className={cn(
-              'flex shrink-0 items-center gap-2 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-colors',
-              activeSection === sec.id
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted/50 text-muted-foreground dark:bg-white/5'
-            )}
-            style={{ minHeight: 44 }}
-          >
-            <sec.icon size={16} />
-            {t(sec.labelKey)}
-          </button>
-        ))}
+      {/* Section selector — native-style horizontal filter/tab strip on mobile,
+          sidebar on desktop (md:hidden below). Bleeds edge-to-edge past the
+          page's own side padding (-mx-4, inner px-4) so it reads as a real
+          swipeable tab bar rather than a row of buttons trapped inside a
+          card — the same pattern used by Instagram/Twitter category bars. */}
+      <div className="relative mb-4 -mx-5 sm:mb-6 sm:mx-0 md:hidden">
+        <div className="flex snap-x snap-proximity gap-2 overflow-x-auto scroll-px-5 scrollbar-hide px-5 pb-1">
+          {SECTIONS.map((sec) => (
+            <button
+              key={sec.id}
+              onClick={() => {
+                clickFx();
+                setActiveSection(sec.id);
+              }}
+              aria-current={activeSection === sec.id}
+              className={cn(
+                'flex shrink-0 snap-start items-center gap-1.5 whitespace-nowrap rounded-full px-4 text-[13px] font-semibold transition-colors',
+                activeSection === sec.id
+                  ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/30'
+                  : 'bg-muted/60 text-muted-foreground active:bg-muted dark:bg-white/5'
+              )}
+              style={{ minHeight: 40 }}
+            >
+              <sec.icon size={15} strokeWidth={2.5} />
+              {t(sec.labelKey)}
+            </button>
+          ))}
+        </div>
+        {/* Trailing fade — a quiet visual cue that there's more to swipe to,
+            instead of relying on a sliver of a cut-off button peeking in. */}
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-secondary to-transparent dark:from-surface-dark" />
       </div>
 
       <div className="flex gap-6">
@@ -625,7 +635,7 @@ export default function SettingsPage() {
             <motion.div variants={stagger} initial="hidden" animate="show">
               <SectionHeader title={t('section_about')} />
               <Card>
-                <CardContent className="p-5 sm:p-6">
+                <CardContent className="p-4 sm:p-6">
                   <motion.div variants={itemVar} className="flex flex-col items-center gap-3 text-center">
                     <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-primary text-primary-foreground shadow-sm">
                       <span className="font-display text-2xl font-bold">G</span>
@@ -693,16 +703,16 @@ export default function SettingsPage() {
                             },
                           });
                         }}
-                        className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/40 dark:hover:bg-white/5 sm:px-5 sm:py-4"
+                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40 dark:hover:bg-white/5 sm:gap-4 sm:px-5 sm:py-4"
                         style={{ minHeight: 44 }}
                       >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-500">
-                            <RotateCcw size={18} />
+                        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-500 sm:h-9 sm:w-9">
+                            <RotateCcw size={17} strokeWidth={2.25} />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-medium leading-tight">{t(action.labelKey)}</p>
-                            <p className="mt-0.5 text-xs text-muted-foreground">{t(action.descKey)}</p>
+                            <p className="text-[13.5px] font-medium leading-tight sm:text-sm">{t(action.labelKey)}</p>
+                            <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground sm:text-xs">{t(action.descKey)}</p>
                           </div>
                         </div>
                         <ChevronRight size={16} className="shrink-0 text-muted-foreground" />
