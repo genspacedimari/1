@@ -84,6 +84,13 @@ html[data-animations='off'] *::after {
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
+  /* Momentum/inertial scrolling + guarantee the browser treats this as a
+     horizontally-draggable region on its own, instead of the drag
+     sometimes being claimed by the page's vertical scroll gesture on
+     Android/Chrome touch input. */
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
