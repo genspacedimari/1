@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Save, RefreshCw, Search, X, Clock, Award, Eye } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useTeacherStore } from '../store';
-import { regenerateExamCode } from '../services';
-import { QUESTION_TYPE_LABELS, DIFFICULTY_LABELS } from '../types';
+import { regenerateExamCode, fetchQuestionsBySetId } from '../services';
+import { QUESTION_TYPE_LABELS, DIFFICULTY_LABELS, type QuestionSet } from '../types';
 import {
   getExamEndTimeLabel,
   DURATION_MINUTES_MIN,
@@ -18,8 +18,10 @@ import { cn } from '@/utils/cn';
 export function ExamEditorPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const presetQuestionSetId = searchParams.get('questionSetId');
   const isEdit = !!id && id !== 'new';
-  const { questions, classes, loadClasses, loadExams, loadQuestions, createExam, updateExam, setExamQuestions } = useTeacherStore();
+  const { questions, questionSets, classes, loadClasses, loadExams, loadQuestions, loadQuestionSets, createExam, updateExam, setExamQuestions } = useTeacherStore();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -35,6 +37,9 @@ export function ExamEditorPage() {
   const [allowReview, setAllowReview] = useState(true);
   const [examCode, setExamCode] = useState('');
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
+  const [selectedQuestionSetId, setSelectedQuestionSetId] = useState<string | null>(presetQuestionSetId);
+  const [questionSelectionMode, setQuestionSelectionMode] = useState<'all'|'specific'>('all');
+  const [setQuestions, setSetQuestions] = useState<typeof questions>([]);
   const [visibility, setVisibility] = useState<'school' | 'selected_class'>('selected_class');
   const [targetAllClasses, setTargetAllClasses] = useState(false);
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
@@ -47,6 +52,7 @@ export function ExamEditorPage() {
 
   useEffect(() => {
     loadQuestions();
+    loadQuestionSets();
     loadClasses();
     if (isEdit) {
       loadExams().then(() => {
@@ -69,11 +75,28 @@ export function ExamEditorPage() {
           setTargetAllClasses(exam.targetAllClasses ?? false);
           setSelectedClassIds(exam.classIds ?? []);
           setSelectedQuestionIds(exam.questionIds);
+          setSelectedQuestionSetId(exam.questionSetId ?? null);
+          setQuestionSelectionMode(exam.questionSelectionMode ?? 'specific');
         }
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    if (!isEdit && !selectedQuestionSetId && questionSets.length > 0) {
+      setSelectedQuestionSetId(presetQuestionSetId ?? questionSets[0].id);
+      setQuestionSelectionMode('all');
+    }
+  }, [isEdit, presetQuestionSetId, questionSets, selectedQuestionSetId]);
+
+  useEffect(() => {
+    if (!selectedQuestionSetId) { setSetQuestions([]); return; }
+    fetchQuestionsBySetId(selectedQuestionSetId).then((qs) => {
+      setSetQuestions(qs);
+      if (questionSelectionMode === 'all') setSelectedQuestionIds(qs.map((q) => q.id));
+    }).catch((err) => console.error('[EXAM_EDITOR] failed to load question set:', err));
+  }, [selectedQuestionSetId, isEdit, questionSelectionMode]);
 
   // Auto-save every 30s when editing
   useEffect(() => {
@@ -115,18 +138,20 @@ export function ExamEditorPage() {
         allowReview,
         visibility,
         targetAllClasses,
+        questionSetId: selectedQuestionSetId,
+        questionSelectionMode: selectedQuestionSetId ? questionSelectionMode : null,
         classIds: visibility === 'selected_class' ? (targetAllClasses ? [] : selectedClassIds) : undefined,
       };
       if (isEdit && id) {
         await updateExam(id, input);
-        await setExamQuestions(id, selectedQuestionIds);
+        await setExamQuestions(id, selectedQuestionIds, selectedQuestionSetId, selectedQuestionSetId ? questionSelectionMode : null);
       } else {
         // Single insert with the full payload — no more create → reload →
         // guess-the-array-index → update round trip. The exam id comes
         // straight back from the insert, so there's no race with a
         // second exam being created concurrently.
         const created = await createExam(input);
-        await setExamQuestions(created.id, selectedQuestionIds);
+        await setExamQuestions(created.id, selectedQuestionIds, selectedQuestionSetId, selectedQuestionSetId ? questionSelectionMode : null);
         setCreatedId(created.id);
       }
       dirtyRef.current = false;
@@ -159,9 +184,9 @@ export function ExamEditorPage() {
     dirtyRef.current = true;
   };
 
-  const filteredQuestions = questions.filter((q) =>
-    q.question.toLowerCase().includes(search.toLowerCase())
-  );
+  const activeQuestionSource = selectedQuestionSetId ? setQuestions : questions;
+  const filteredQuestions = activeQuestionSource.filter((q) => q.question.toLowerCase().includes(search.toLowerCase()));
+  const selectedSet = questionSets.find((s: QuestionSet) => s.id === selectedQuestionSetId);
 
   const inputClass = 'w-full rounded-2xl border border-border bg-surface px-4 py-3 text-sm outline-none transition-colors focus:border-primary dark:border-border-dark dark:bg-surface-dark';
   const toggleClass = (on: boolean) => cn(
@@ -337,42 +362,19 @@ export function ExamEditorPage() {
 
       {/* Question selection */}
       <Card>
-        <CardContent className="p-0">
-          <div className="flex items-center justify-between px-5 py-4">
-            <h2 className="text-sm font-semibold">Questions ({selectedQuestionIds.length} selected)</h2>
-          </div>
-          <div className="border-t border-border px-5 py-3 dark:border-border-dark">
-            <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search questions..." className="w-full rounded-2xl border border-border bg-surface pl-9 pr-4 py-2.5 text-sm outline-none focus:border-primary dark:border-border-dark dark:bg-surface-dark" style={{ minHeight: 44 }} />
-            </div>
-          </div>
-          <div className="border-t border-border dark:border-border-dark" />
-          <div className="max-h-80 overflow-y-auto divide-y divide-border dark:divide-border-dark">
-            {filteredQuestions.map((q) => {
-              const selected = selectedQuestionIds.includes(q.id);
-              return (
-                <button
-                  key={q.id}
-                  onClick={() => toggleQuestion(q.id)}
-                  className={cn('flex w-full items-center gap-3 px-5 py-3 text-left transition-colors', selected ? 'bg-primary/5' : 'hover:bg-muted/20 dark:hover:bg-white/5')}
-                  style={{ minHeight: 44 }}
-                >
-                  <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2 transition-colors', selected ? 'border-primary bg-primary text-primary-foreground' : 'border-border dark:border-border-dark')}>
-                    {selected && <X size={12} className="rotate-45" />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{q.question}</p>
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{QUESTION_TYPE_LABELS[q.type]}</span>
-                      <span>{DIFFICULTY_LABELS[q.difficulty]}</span>
-                      <span>{q.points} pts</span>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+        <CardContent className="p-5 space-y-4">
+          <div><h2 className="text-sm font-semibold">Question Source</h2><p className="mt-1 text-xs text-muted-foreground">Choose a Question Set first. The selected questions are snapshotted into this Exam.</p></div>
+          <select value={selectedQuestionSetId ?? ''} onChange={(e)=>{const value=e.target.value||null;setSelectedQuestionSetId(value);setQuestionSelectionMode('all');dirtyRef.current=true;}} className={inputClass}>
+            <option value="">No Question Set — use individual questions</option>
+            {questionSets.map(set=><option key={set.id} value={set.id}>{set.name} · {set.questionCount} questions</option>)}
+          </select>
+          {selectedSet && <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4"><div className="flex items-center justify-between"><div><p className="text-sm font-semibold">{selectedSet.name}</p><p className="text-xs text-muted-foreground">{selectedSet.questionCount} questions available</p></div><Badge variant="outline">Question Set</Badge></div></div>}
+          {selectedQuestionSetId && <div className="grid grid-cols-2 gap-2"><button onClick={()=>{setQuestionSelectionMode('all');setSelectedQuestionIds(setQuestions.map(q=>q.id));dirtyRef.current=true}} className={cn('rounded-2xl border px-3 py-3 text-sm font-medium',questionSelectionMode==='all'?'border-primary bg-primary/10 text-primary':'border-border text-muted-foreground dark:border-border-dark')}>Use all questions<br/><span className="text-xs font-normal">{setQuestions.length} questions</span></button><button onClick={()=>{setQuestionSelectionMode('specific');dirtyRef.current=true}} className={cn('rounded-2xl border px-3 py-3 text-sm font-medium',questionSelectionMode==='specific'?'border-primary bg-primary/10 text-primary':'border-border text-muted-foreground dark:border-border-dark')}>Select specific<br/><span className="text-xs font-normal">Choose manually</span></button></div>}
+          {(!selectedQuestionSetId || questionSelectionMode==='specific') && <>
+            <div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search questions..." className="w-full rounded-2xl border border-border bg-surface pl-9 pr-4 py-2.5 text-sm outline-none focus:border-primary dark:border-border-dark dark:bg-surface-dark" style={{minHeight:44}}/></div>
+            <div className="rounded-2xl border border-border dark:border-border-dark"><div className="flex items-center justify-between border-b border-border px-4 py-3 text-sm dark:border-border-dark"><span>Selected</span><strong>{selectedQuestionIds.length}</strong></div><div className="max-h-80 overflow-y-auto divide-y divide-border dark:divide-border-dark">{filteredQuestions.map(q=>{const selected=selectedQuestionIds.includes(q.id);return <button key={q.id} onClick={()=>toggleQuestion(q.id)} className={cn('flex w-full items-center gap-3 px-4 py-3 text-left',selected?'bg-primary/5':'hover:bg-muted/20')}><div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2',selected?'border-primary bg-primary text-primary-foreground':'border-border dark:border-border-dark')}>{selected&&<X size={12} className="rotate-45"/>}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{q.question}</p><div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground"><span>{QUESTION_TYPE_LABELS[q.type]}</span><span>{DIFFICULTY_LABELS[q.difficulty]}</span><span>{q.points} pts</span></div></div></button>})}</div></div>
+          </>}
+          {selectedQuestionSetId && questionSelectionMode==='all' && <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm"><strong>{selectedQuestionIds.length} questions</strong> from <strong>{selectedSet?.name}</strong> will be used automatically.</div>}
         </CardContent>
       </Card>
     </div>
