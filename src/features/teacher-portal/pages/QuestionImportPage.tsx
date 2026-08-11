@@ -20,13 +20,19 @@ export function QuestionImportPage(){
  const resetFile=()=>{setFileName(null);setPreview(null);setParseError(null);setImportResult(null);if(fileRef.current)fileRef.current.value=''};
  const downloadTemplate=()=>format==='csv'?downloadQuestionImportTemplateCSV():format==='xlsx'?downloadQuestionImportTemplateExcel():downloadQuestionImportTemplateJSON();
  const handleFile=async(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;setParseError(null);setImportResult(null);setFileName(file.name);try{const parsed=format==='csv'?parseCSV(await file.text()):format==='xlsx'?parseExcel(await file.arrayBuffer()):parseJSON(await file.text());if(!parsed.length){setPreview(null);setParseError('No usable rows were found in this file.');return}setPreview(validateImportRows(parsed))}catch(err){setPreview(null);setParseError(err instanceof Error?err.message:'Failed to parse file')}};
- const handleImport=async()=>{if(!preview||preview.valid.length===0||importingRef.current)return;if(!existingSet&&!setName.trim()){setParseError('Question Set name is required.');return}importingRef.current=true;setImporting(true);try{
+ const handleImport=async()=>{if(!preview||preview.valid.length===0||importingRef.current)return;if(!existingSet&&!setName.trim()){setParseError('Question Set name is required.');return}importingRef.current=true;setImporting(true);setParseError(null);try{
    const target=existingSet??await svc.createQuestionSet(setName.trim());
    const categoryCache=new Map<string,string|null>(); categories.forEach(c=>categoryCache.set(c.name.trim().toLowerCase(),c.id));
    const resolveCategory=async(name:string)=>{const key=name.trim().toLowerCase();if(!key)return null;if(categoryCache.has(key))return categoryCache.get(key)!;const c=await svc.createCategory(name.trim());categoryCache.set(key,c.id);return c.id};
    let imported=0;const failed:{row:ValidatedImportRow;reason:string}[]=[];
    for(const item of preview.valid){const {row}=item;const options=[row.optionA,row.optionB,row.optionC,row.optionD].map((label,idx)=>({label,isCorrect:OPTION_LETTERS[idx]===row.correctAnswer,sortOrder:idx})).filter(o=>o.label.trim());try{const categoryId=await resolveCategory(row.category);await svc.createQuestion({questionSetId:target.id,categoryId,type:'multiple_choice',question:row.question,difficulty:row.difficulty as 'easy'|'medium'|'hard',points:10,explanation:row.explanation||null,options});imported++}catch(err){failed.push({row:item,reason:err instanceof Error?err.message:'Failed to save'})}}
    await Promise.all([loadQuestions(),loadCategories(),loadQuestionSets()]);setImportResult({imported,failed,setName:target.name,setId:target.id});
+ }catch(err){
+   // Previously unhandled: a failure creating the Question Set itself (RLS,
+   // network, duplicate name, etc.) would reject silently — the button
+   // would flash "Importing..." and reset with zero feedback and nothing
+   // saved. Surface it like a normal parse error instead.
+   setParseError(err instanceof Error?err.message:'Failed to import questions');
  }finally{importingRef.current=false;setImporting(false)}};
  const formatOptions=[{value:'csv' as ImportFormat,label:'CSV',icon:FileText},{value:'xlsx' as ImportFormat,label:'Excel',icon:FileSpreadsheet},{value:'json' as ImportFormat,label:'JSON',icon:FileJson}];
  return <div className="mx-auto max-w-4xl space-y-4"><div className="flex items-center gap-3"><button onClick={()=>navigate(existingSet?`/teacher/questions/sets/${existingSet.id}`:'/teacher/questions')} className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/40"><ArrowLeft size={20}/></button><div><h1 className="font-display text-xl font-semibold">Import Question Set</h1><p className="text-xs text-muted-foreground">Import File → Question Set → Questions</p></div></div>
