@@ -45,6 +45,9 @@ const QuestionEditorPage = lazy(() =>
 const QuestionPreviewPage = lazy(() =>
   import('@/features/teacher-portal/pages/QuestionPreviewPage').then((m) => ({ default: m.QuestionPreviewPage })),
 );
+const QuestionSetPage = lazy(() =>
+  import('@/features/teacher-portal/pages/QuestionSetPage').then((m) => ({ default: m.QuestionSetPage })),
+);
 const QuestionImportPage = lazy(() =>
   import('@/features/teacher-portal/pages/QuestionImportPage').then((m) => ({ default: m.QuestionImportPage })),
 );
@@ -181,6 +184,7 @@ export const router = createBrowserRouter([
       { path: 'questions', element: withSuspense(<QuestionBankPage />) },
       { path: 'questions/new', element: withSuspense(<QuestionEditorPage />) },
       { path: 'questions/import', element: withSuspense(<QuestionImportPage />) },
+      { path: 'questions/sets/:id', element: withSuspense(<QuestionSetPage />) },
       { path: 'questions/:id/edit', element: withSuspense(<QuestionEditorPage />) },
       { path: 'questions/:id/preview', element: withSuspense(<QuestionPreviewPage />) },
       { path: 'exams', element: withSuspense(<ExamsPage />) },
