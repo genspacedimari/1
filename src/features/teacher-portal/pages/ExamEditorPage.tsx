@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Save, RefreshCw, Search, X, Clock, Award, Eye } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useTeacherStore } from '../store';
 import { regenerateExamCode, fetchQuestionsBySetId } from '../services';
 import { QUESTION_TYPE_LABELS, DIFFICULTY_LABELS, type QuestionSet } from '../types';
