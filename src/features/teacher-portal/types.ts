@@ -32,9 +32,19 @@ export interface LadderQuestionData {
   answerLadderJson: string | null;
 }
 
+export interface QuestionSet {
+  id: string;
+  teacherId: string;
+  name: string;
+  questionCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Question {
   id: string;
   teacherId: string;
+  questionSetId: string | null;
   categoryId: string | null;
   type: QuestionType;
   question: string;
@@ -69,6 +79,8 @@ export interface Exam {
   visibility: ExamVisibility;
   targetAllClasses: boolean;
   schoolId: string | null;
+  questionSetId: string | null;
+  questionSelectionMode: 'all' | 'specific' | null;
   createdAt: string;
   updatedAt: string;
   questionIds: string[];
