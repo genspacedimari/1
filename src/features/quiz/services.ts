@@ -156,40 +156,47 @@ export async function findExamByCode(code: string): Promise<ExamInfo | null> {
   // Get questions for this exam
   const { data: examQuestions } = await supabase
     .from('exam_questions')
-    .select('question_id, sort_order')
+    .select('question_id, sort_order, question_snapshot')
     .eq('exam_id', exam.id)
     .order('sort_order');
 
-  const questionIds = (examQuestions ?? []).map((eq) => eq.question_id);
+  const questionIds = (examQuestions ?? []).map((eq) => eq.question_id).filter((id): id is string => !!id);
   const questions: QuizQuestion[] = [];
-  if (questionIds.length > 0) {
+  const snapshotRows = (examQuestions ?? []) as Array<{ question_id: string; sort_order: number; question_snapshot?: QuizQuestion & { options?: Array<{ label: string; isCorrect: boolean }>; images?: Array<{ imageUrl: string }>; ladderData?: { mode?: string; ladderJson?: string | null; expectedOutput?: string | null; answerLadderJson?: string | null } | null } | null }>;
+  const hasSnapshots = snapshotRows.length > 0 && snapshotRows.every((eq) => !!eq.question_snapshot);
+  if (hasSnapshots) {
+    for (const eq of snapshotRows) {
+      const snap = eq.question_snapshot!;
+      questions.push({
+        id: snap.id,
+        type: snap.type,
+        question: snap.question,
+        difficulty: snap.difficulty,
+        points: snap.points,
+        explanation: snap.explanation ?? null,
+        options: (snap.options ?? []).map((o) => ({ label: o.label, isCorrect: o.isCorrect })),
+        imageUrls: (snap.images ?? []).map((i) => i.imageUrl),
+        ladderMode: snap.ladderData?.mode as QuizQuestion['ladderMode'],
+        ladderJson: snap.ladderData?.ladderJson ?? null,
+        expectedOutput: snap.ladderData?.expectedOutput ?? null,
+        answerLadderJson: snap.ladderData?.answerLadderJson ?? null,
+      });
+    }
+  } else if (questionIds.length > 0) {
+    // Legacy exams created before snapshots: keep the old live-question fallback.
     const [{ data: qs }, { data: opts }, { data: imgs }, { data: ladders }] = await Promise.all([
       supabase.from('questions').select('*').in('id', questionIds),
       supabase.from('question_options').select('*').in('question_id', questionIds),
       supabase.from('question_images').select('*').in('question_id', questionIds),
       supabase.from('ladder_questions').select('*').in('question_id', questionIds),
     ]);
-
     for (const eq of examQuestions ?? []) {
       const q = (qs ?? []).find((x) => x.id === eq.question_id);
       if (!q) continue;
       const qOpts = (opts ?? []).filter((o) => o.question_id === q.id).sort((a, b) => a.sort_order - b.sort_order);
       const qImgs = (imgs ?? []).filter((i) => i.question_id === q.id).map((i) => i.image_url);
       const qLadder = (ladders ?? []).find((l) => l.question_id === q.id);
-      questions.push({
-        id: q.id,
-        type: q.type,
-        question: q.question,
-        difficulty: q.difficulty,
-        points: q.points,
-        explanation: q.explanation,
-        options: qOpts.map((o) => ({ label: o.label, isCorrect: o.is_correct })),
-        imageUrls: qImgs,
-        ladderMode: qLadder?.mode,
-        ladderJson: qLadder?.ladder_json,
-        expectedOutput: qLadder?.expected_output,
-        answerLadderJson: qLadder?.answer_ladder_json,
-      });
+      questions.push({ id: q.id, type: q.type, question: q.question, difficulty: q.difficulty, points: q.points, explanation: q.explanation, options: qOpts.map((o) => ({ label: o.label, isCorrect: o.is_correct })), imageUrls: qImgs, ladderMode: qLadder?.mode, ladderJson: qLadder?.ladder_json, expectedOutput: qLadder?.expected_output, answerLadderJson: qLadder?.answer_ladder_json });
     }
   }
 
