@@ -7,6 +7,23 @@
 @layer base {
   html {
     @apply scroll-smooth;
+    /* Native-app feel on touch devices: allow vertical/horizontal panning
+       but drop the pinch-zoom + double-tap-zoom gestures. Works together
+       with the maximum-scale/user-scalable viewport meta tag in index.html
+       as a second line of defense on browsers that partially honor it. */
+    touch-action: pan-x pan-y;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  html,
+  body {
+    /* Safety net so no single element (long labels, dense controls, etc.)
+       can ever force the whole page to scroll sideways on narrow screens.
+       Inner elements that intentionally scroll horizontally (e.g. the
+       Settings section tab strip) opt back in with their own overflow-x. */
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 
   body {
