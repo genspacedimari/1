@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   QuestionCategory,
+  QuestionSet,
   Question,
   Exam,
   Class,
@@ -14,6 +15,7 @@ import * as svc from './services';
 
 interface TeacherPortalState {
   categories: QuestionCategory[];
+  questionSets: QuestionSet[];
   questions: Question[];
   archivedQuestions: Question[];
   exams: Exam[];
@@ -24,6 +26,9 @@ interface TeacherPortalState {
   error: string | null;
 
   loadCategories: () => Promise<void>;
+  loadQuestionSets: () => Promise<void>;
+  createQuestionSet: (name: string) => Promise<QuestionSet>;
+  deleteQuestionSet: (id: string) => Promise<void>;
   createCategory: (name: string, color?: string) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
 
@@ -39,7 +44,7 @@ interface TeacherPortalState {
   updateExam: (id: string, input: Parameters<typeof svc.updateExam>[1]) => Promise<void>;
   deleteExam: (id: string) => Promise<void>;
   duplicateExam: (id: string) => Promise<void>;
-  setExamQuestions: (examId: string, questionIds: string[]) => Promise<void>;
+  setExamQuestions: (examId: string, questionIds: string[], questionSetId?: string | null, questionSelectionMode?: 'all' | 'specific' | null) => Promise<void>;
 
   loadClasses: () => Promise<void>;
   createClass: (name: string) => Promise<void>;
@@ -56,6 +61,7 @@ interface TeacherPortalState {
 
 export const useTeacherStore = create<TeacherPortalState>((set, get) => ({
   categories: [],
+  questionSets: [],
   questions: [],
   archivedQuestions: [],
   exams: [],
@@ -76,6 +82,23 @@ export const useTeacherStore = create<TeacherPortalState>((set, get) => ({
   createCategory: async (name, color) => {
     await svc.createCategory(name, color);
     await get().loadCategories();
+  },
+  loadQuestionSets: async () => {
+    try {
+      const questionSets = await svc.fetchQuestionSets();
+      set({ questionSets });
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Failed to load question sets' });
+    }
+  },
+  createQuestionSet: async (name) => {
+    const created = await svc.createQuestionSet(name);
+    await get().loadQuestionSets();
+    return created;
+  },
+  deleteQuestionSet: async (id) => {
+    await svc.deleteQuestionSet(id);
+    await Promise.all([get().loadQuestionSets(), get().loadQuestions()]);
   },
   deleteCategory: async (id) => {
     await svc.deleteCategory(id);
@@ -142,8 +165,8 @@ export const useTeacherStore = create<TeacherPortalState>((set, get) => ({
     await svc.duplicateExam(id);
     await get().loadExams();
   },
-  setExamQuestions: async (examId, questionIds) => {
-    await svc.setExamQuestions(examId, questionIds);
+  setExamQuestions: async (examId, questionIds, questionSetId = null, questionSelectionMode = null) => {
+    await svc.setExamQuestions(examId, questionIds, questionSetId, questionSelectionMode);
     await get().loadExams();
   },
 
