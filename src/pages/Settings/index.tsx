@@ -4,7 +4,7 @@ import {
   Settings as SettingsIcon, FileSliders as Sliders, CreditCard as Edit3, Database, Info,
   RotateCcw, ChevronRight, Download, Upload, Trash2, Zap, Moon, Globe, Sparkles, Volume2,
   Smartphone, Monitor, Grid3x3, Magnet, GitBranch, MapPin, Gauge, Activity, Crosshair,
-  ZoomIn, Grid2x2, Circle, History, Save, Github,
+  ZoomIn, Grid2x2, Circle, History, Save, Instagram,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ import { isWakeLockSupported } from '@/utils/wakeLock';
 import { playClickSound } from '@/utils/sound';
 import pkg from '../../../package.json';
 
-const REPO_URL = 'https://github.com/gsprojectt1/tumbasdimariv1';
+const INSTAGRAM_URL = 'https://www.instagram.com/ghnisptra_/';
 
 type SectionId = 'general' | 'simulator' | 'editor' | 'storage' | 'about' | 'reset';
 
@@ -356,6 +356,7 @@ export default function SettingsPage() {
                     <StackRow icon={Save} label={t('autosave_label')} description={t('autosave_desc')}>
                       <Segmented
                         aria-label={t('autosave_label')}
+                        fullWidth
                         value={s.autoSave}
                         onChange={(v) => s.update({ autoSave: v })}
                         options={[
@@ -444,6 +445,7 @@ export default function SettingsPage() {
                     <StackRow icon={Gauge} label={t('scantime_label')} description={t('scantime_desc')}>
                       <Segmented
                         aria-label={t('scantime_label')}
+                        fullWidth
                         value={s.defaultScanTime}
                         onChange={(v) => s.update({ defaultScanTime: v })}
                         options={[
@@ -502,6 +504,7 @@ export default function SettingsPage() {
                     <StackRow icon={ZoomIn} label={t('zoom_label')} description={t('zoom_desc')}>
                       <Segmented
                         aria-label={t('zoom_label')}
+                        fullWidth
                         value={s.defaultZoom}
                         onChange={(v) => s.update({ defaultZoom: v })}
                         options={[
@@ -528,6 +531,7 @@ export default function SettingsPage() {
                     <StackRow icon={Grid2x2} label={t('gridsize_label')} description={t('gridsize_desc')}>
                       <Segmented
                         aria-label={t('gridsize_label')}
+                        fullWidth
                         value={s.gridSize}
                         onChange={(v) => s.update({ gridSize: v })}
                         options={[
@@ -558,6 +562,7 @@ export default function SettingsPage() {
                     <StackRow icon={History} label={t('undolimit_label')} description={t('undolimit_desc')}>
                       <Segmented
                         aria-label={t('undolimit_label')}
+                        fullWidth
                         value={s.undoHistoryLimit}
                         onChange={(v) => s.update({ undoHistoryLimit: v })}
                         options={[
@@ -651,7 +656,7 @@ export default function SettingsPage() {
                   <div className="mt-6 space-y-2">
                     <motion.a
                       variants={itemVar}
-                      href={REPO_URL}
+                      href={INSTAGRAM_URL}
                       target="_blank"
                       rel="noreferrer noopener"
                       onClick={clickFx}
@@ -659,8 +664,8 @@ export default function SettingsPage() {
                       style={{ minHeight: 44 }}
                     >
                       <span className="flex items-center gap-2">
-                        <Github size={16} />
-                        {t('about_source')}
+                        <Instagram size={16} />
+                        Instagram @ghnisptra_
                       </span>
                       <ChevronRight size={16} className="text-muted-foreground" />
                     </motion.a>
