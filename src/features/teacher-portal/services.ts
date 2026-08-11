@@ -611,7 +611,7 @@ export async function createExam(input: {
   targetAllClasses?: boolean;
   schoolId?: string | null;
   questionSetId?: string | null;
-  questionSelectionMode?: 'all' | 'specific';
+  questionSelectionMode?: 'all' | 'specific' | null;
   classIds?: string[];
 }): Promise<Exam> {
   const tid = getTeacherId();
