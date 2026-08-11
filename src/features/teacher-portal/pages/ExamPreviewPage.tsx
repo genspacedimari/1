@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useTeacherStore } from '../store';
+import { fetchExamSnapshotQuestions } from '../services';
 import { QUESTION_TYPE_LABELS, DIFFICULTY_LABELS } from '../types';
 import { cn } from '@/utils/cn';
 
@@ -16,12 +17,16 @@ export function ExamPreviewPage() {
   const [examQuestions, setExamQuestions] = useState<typeof questions>([]);
 
   useEffect(() => {
-    Promise.all([loadExams(), loadQuestions()]).then(() => {
+    Promise.all([loadExams(), loadQuestions()]).then(async () => {
       const exam = useTeacherStore.getState().exams.find((e) => e.id === id);
       if (exam) {
         setExamName(exam.name);
-        const qs = useTeacherStore.getState().questions.filter((q) => exam.questionIds.includes(q.id));
-        setExamQuestions(qs);
+        try {
+          const snapshot = await fetchExamSnapshotQuestions(exam.id);
+          setExamQuestions(snapshot.length > 0 ? snapshot : useTeacherStore.getState().questions.filter((q) => exam.questionIds.includes(q.id)));
+        } catch {
+          setExamQuestions(useTeacherStore.getState().questions.filter((q) => exam.questionIds.includes(q.id)));
+        }
       }
     });
   }, [id, loadExams, loadQuestions]);
