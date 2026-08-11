@@ -2,6 +2,7 @@ import { supabase } from '@/services/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import type {
   QuestionCategory,
+  QuestionSet,
   Question,
   QuestionOption,
   QuestionImage,
@@ -104,12 +105,83 @@ export async function deleteCategory(id: string): Promise<void> {
 }
 
 // ============================================================
+// Question Sets
+// ============================================================
+
+interface QuestionSetRow {
+  id: string;
+  teacher_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function mapQuestionSet(row: QuestionSetRow, questionCount = 0): QuestionSet {
+  return {
+    id: row.id,
+    teacherId: row.teacher_id,
+    name: row.name,
+    questionCount,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function fetchQuestionSets(): Promise<QuestionSet[]> {
+  const tid = getTeacherId();
+  const [{ data: sets, error: setErr }, { data: qRows, error: qErr }] = await Promise.all([
+    supabase.from('question_sets').select('*').eq('teacher_id', tid).order('updated_at', { ascending: false }),
+    supabase.from('questions').select('id, question_set_id').eq('teacher_id', tid),
+  ]);
+  if (setErr) throw toFriendlyError(setErr, 'Failed to load question sets');
+  if (qErr) throw toFriendlyError(qErr, 'Failed to load question counts');
+  const counts = new Map<string, number>();
+  (qRows ?? []).forEach((q) => {
+    if (q.question_set_id) counts.set(q.question_set_id, (counts.get(q.question_set_id) ?? 0) + 1);
+  });
+  return (sets as QuestionSetRow[] ?? []).map((row) => mapQuestionSet(row, counts.get(row.id) ?? 0));
+}
+
+export async function fetchQuestionSet(id: string): Promise<QuestionSet | null> {
+  const tid = getTeacherId();
+  const { data, error } = await supabase.from('question_sets').select('*').eq('id', id).eq('teacher_id', tid).maybeSingle();
+  if (error) throw toFriendlyError(error, 'Failed to load question set');
+  if (!data) return null;
+  const { count, error: countErr } = await supabase
+    .from('questions')
+    .select('id', { count: 'exact', head: true })
+    .eq('teacher_id', tid)
+    .eq('question_set_id', id);
+  if (countErr) throw toFriendlyError(countErr, 'Failed to load question set');
+  return mapQuestionSet(data as QuestionSetRow, count ?? 0);
+}
+
+export async function createQuestionSet(name: string): Promise<QuestionSet> {
+  const tid = getTeacherId();
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Question Set name is required.');
+  const { data, error } = await supabase
+    .from('question_sets')
+    .insert({ teacher_id: tid, name: trimmed })
+    .select()
+    .single();
+  if (error) throw toFriendlyError(error, 'Failed to create question set');
+  return mapQuestionSet(data as QuestionSetRow, 0);
+}
+
+export async function deleteQuestionSet(id: string): Promise<void> {
+  const { error } = await supabase.from('question_sets').delete().eq('id', id);
+  if (error) throw toFriendlyError(error, 'Failed to delete question set');
+}
+
+// ============================================================
 // Questions
 // ============================================================
 
 interface QuestionRow {
   id: string;
   teacher_id: string;
+  question_set_id: string | null;
   category_id: string | null;
   type: string;
   question: string;
@@ -153,6 +225,7 @@ function mapQuestion(
   return {
     id: q.id,
     teacherId: q.teacher_id,
+    questionSetId: q.question_set_id ?? null,
     categoryId: q.category_id,
     type: q.type as Question['type'],
     question: q.question,
@@ -206,6 +279,7 @@ export async function fetchQuestions(archived = false): Promise<Question[]> {
 }
 
 export async function createQuestion(input: {
+  questionSetId?: string | null;
   categoryId: string | null;
   type: Question['type'];
   question: string;
@@ -219,6 +293,7 @@ export async function createQuestion(input: {
   const tid = getTeacherId();
   const payload = {
     teacher_id: tid,
+    question_set_id: input.questionSetId ?? null,
     category_id: input.categoryId,
     type: input.type,
     question: input.question,
@@ -281,6 +356,7 @@ export async function createQuestion(input: {
 }
 
 export async function updateQuestion(id: string, input: {
+  questionSetId?: string | null;
   categoryId?: string | null;
   question?: string;
   difficulty?: Question['difficulty'];
@@ -291,6 +367,7 @@ export async function updateQuestion(id: string, input: {
   ladderData?: LadderQuestionData | null;
 }): Promise<void> {
   const update: Record<string, unknown> = {};
+  if (input.questionSetId !== undefined) update.question_set_id = input.questionSetId;
   if (input.categoryId !== undefined) update.category_id = input.categoryId;
   if (input.question !== undefined) update.question = input.question;
   if (input.difficulty !== undefined) update.difficulty = input.difficulty;
@@ -352,6 +429,7 @@ export async function duplicateQuestion(id: string): Promise<void> {
     .from('questions')
     .insert({
       teacher_id: tid,
+      question_set_id: q.question_set_id ?? null,
       category_id: q.category_id,
       type: q.type,
       question: `${q.question} (Copy)`,
@@ -403,6 +481,36 @@ export async function deleteQuestion(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function fetchQuestionsBySetId(setId: string, archived = false): Promise<Question[]> {
+  const tid = getTeacherId();
+  const { data: questions, error } = await supabase
+    .from('questions')
+    .select('*')
+    .eq('teacher_id', tid)
+    .eq('question_set_id', setId)
+    .eq('archived', archived)
+    .order('created_at', { ascending: true });
+  if (error) throw toFriendlyError(error, 'Failed to load question set questions');
+  if (!questions || questions.length === 0) return [];
+  const ids = questions.map((q) => q.id);
+  const [{ data: opts }, { data: imgs }, { data: ladders }] = await Promise.all([
+    supabase.from('question_options').select('*').in('question_id', ids),
+    supabase.from('question_images').select('*').in('question_id', ids),
+    supabase.from('ladder_questions').select('*').in('question_id', ids),
+  ]);
+  return (questions as QuestionRow[]).map((q) => mapQuestion(
+    q,
+    ((opts as OptionRow[] | null)?.filter((o) => o.question_id === q.id) ?? []),
+    ((imgs as ImageRow[] | null)?.filter((i) => i.question_id === q.id) ?? []),
+    ((ladders as LadderRow[] | null)?.find((l) => l.question_id === q.id) ?? null),
+  ));
+}
+
+export async function assignQuestionToSet(questionId: string, setId: string | null): Promise<void> {
+  const { error } = await supabase.from('questions').update({ question_set_id: setId }).eq('id', questionId);
+  if (error) throw toFriendlyError(error, 'Failed to update question set');
+}
+
 // ============================================================
 // Exams
 // ============================================================
@@ -427,6 +535,8 @@ interface ExamRow {
   visibility: string;
   target_all_classes: boolean;
   school_id: string | null;
+  question_set_id: string | null;
+  question_selection_mode: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -452,6 +562,8 @@ function rowToExam(row: ExamRow, questionIds: string[] = [], classIds: string[] 
     visibility: (row.visibility ?? 'selected_class') as Exam['visibility'],
     targetAllClasses: row.target_all_classes ?? false,
     schoolId: row.school_id ?? null,
+    questionSetId: row.question_set_id ?? null,
+    questionSelectionMode: (row.question_selection_mode as Exam['questionSelectionMode']) ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     questionIds,
@@ -476,7 +588,7 @@ export async function fetchExams(): Promise<Exam[]> {
   ]);
 
   return (exams as ExamRow[]).map((e) => {
-    const qIds = (eqs ?? []).filter((eq) => eq.exam_id === e.id).map((eq) => eq.question_id);
+    const qIds = (eqs ?? []).filter((eq) => eq.exam_id === e.id).map((eq) => eq.question_id).filter((id): id is string => !!id);
     const cIds = (ecs ?? []).filter((ec) => ec.exam_id === e.id).map((ec) => ec.class_id);
     return rowToExam(e, qIds, cIds);
   });
@@ -498,6 +610,8 @@ export async function createExam(input: {
   visibility?: string;
   targetAllClasses?: boolean;
   schoolId?: string | null;
+  questionSetId?: string | null;
+  questionSelectionMode?: 'all' | 'specific';
   classIds?: string[];
 }): Promise<Exam> {
   const tid = getTeacherId();
@@ -520,6 +634,8 @@ export async function createExam(input: {
     visibility: input.visibility ?? 'selected_class',
     target_all_classes: input.targetAllClasses ?? false,
     school_id: schoolId,
+    question_set_id: input.questionSetId ?? null,
+    question_selection_mode: input.questionSelectionMode ?? null,
   };
   if (input.examDate !== undefined) payload.exam_date = input.examDate;
   if (input.startTime !== undefined) payload.start_time = input.startTime;
@@ -572,6 +688,8 @@ export async function updateExam(id: string, input: Partial<{
   visibility: string;
   targetAllClasses: boolean;
   schoolId: string | null;
+  questionSetId: string | null;
+  questionSelectionMode: 'all' | 'specific' | null;
   classIds: string[];
 }>): Promise<void> {
   const { classIds, ...rest } = input;
@@ -592,6 +710,8 @@ export async function updateExam(id: string, input: Partial<{
   if (rest.visibility !== undefined) update.visibility = rest.visibility;
   if (rest.targetAllClasses !== undefined) update.target_all_classes = rest.targetAllClasses;
   if (rest.schoolId !== undefined) update.school_id = rest.schoolId;
+  if (rest.questionSetId !== undefined) update.question_set_id = rest.questionSetId;
+  if (rest.questionSelectionMode !== undefined) update.question_selection_mode = rest.questionSelectionMode;
 
   debugLog('[UPDATE_EXAM] id:', id, 'update fields:', update);
   if (Object.keys(update).length > 0) {
@@ -646,6 +766,8 @@ export async function duplicateExam(id: string): Promise<void> {
       status: 'draft',
       visibility: exam.visibility ?? 'selected_class',
       school_id: exam.school_id ?? null,
+      question_set_id: exam.question_set_id ?? null,
+      question_selection_mode: exam.question_selection_mode ?? null,
     })
     .select()
     .single();
@@ -654,21 +776,76 @@ export async function duplicateExam(id: string): Promise<void> {
   if (eqs && eqs.length > 0) {
     await supabase.from('exam_questions').insert(eqs.map((eq) => ({
       exam_id: copy.id,
-      question_id: eq.question_id,
+      question_id: eq.question_id ?? null,
       sort_order: eq.sort_order,
+      question_snapshot: eq.question_snapshot ?? null,
     })));
   }
 }
 
-export async function setExamQuestions(examId: string, questionIds: string[]): Promise<void> {
+export async function setExamQuestions(
+  examId: string,
+  questionIds: string[],
+  questionSetId: string | null = null,
+  questionSelectionMode: 'all' | 'specific' | null = null,
+): Promise<void> {
+  const tid = getTeacherId();
+  const uniqueIds = Array.from(new Set(questionIds));
+  let questionsForSnapshot: Question[] = [];
+  if (uniqueIds.length > 0) {
+    const { data: rows, error } = await supabase
+      .from('questions')
+      .select('*')
+      .eq('teacher_id', tid)
+      .in('id', uniqueIds);
+    if (error) throw toFriendlyError(error, 'Failed to load questions for exam');
+    const typedRows = (rows ?? []) as QuestionRow[];
+    const [{ data: opts }, { data: imgs }, { data: ladders }] = await Promise.all([
+      supabase.from('question_options').select('*').in('question_id', uniqueIds),
+      supabase.from('question_images').select('*').in('question_id', uniqueIds),
+      supabase.from('ladder_questions').select('*').in('question_id', uniqueIds),
+    ]);
+    questionsForSnapshot = typedRows.map((q) => mapQuestion(
+      q,
+      ((opts as OptionRow[] | null)?.filter((o) => o.question_id === q.id) ?? []),
+      ((imgs as ImageRow[] | null)?.filter((i) => i.question_id === q.id) ?? []),
+      ((ladders as LadderRow[] | null)?.find((l) => l.question_id === q.id) ?? null),
+    ));
+    if (questionsForSnapshot.length !== uniqueIds.length) {
+      throw new Error('One or more selected questions could not be found or do not belong to you.');
+    }
+  }
+  const byId = new Map(questionsForSnapshot.map((q) => [q.id, q]));
   await supabase.from('exam_questions').delete().eq('exam_id', examId);
-  if (questionIds.length > 0) {
+  if (uniqueIds.length > 0) {
     const { error } = await supabase
       .from('exam_questions')
-      .insert(questionIds.map((qid, i) => ({ exam_id: examId, question_id: qid, sort_order: i })));
-    if (error) throw error;
+      .insert(uniqueIds.map((qid, i) => ({
+        exam_id: examId,
+        question_id: qid,
+        sort_order: i,
+        question_snapshot: byId.get(qid) ?? null,
+      })));
+    if (error) throw toFriendlyError(error, 'Failed to save exam questions');
   }
+  const { error: examErr } = await supabase.from('exams').update({
+    question_set_id: questionSetId,
+    question_selection_mode: questionSelectionMode,
+  }).eq('id', examId).eq('teacher_id', tid);
+  if (examErr) throw toFriendlyError(examErr, 'Failed to save exam question source');
 }
+
+export async function fetchExamSnapshotQuestions(examId: string): Promise<Question[]> {
+  const { data, error } = await supabase
+    .from('exam_questions')
+    .select('question_id, question_snapshot, sort_order')
+    .eq('exam_id', examId)
+    .order('sort_order');
+  if (error) throw toFriendlyError(error, 'Failed to load exam questions');
+  const snapshots = (data ?? []) as Array<{ question_id: string; question_snapshot: Question | null; sort_order: number }>;
+  return snapshots.filter((r) => r.question_snapshot).map((r) => r.question_snapshot as Question);
+}
+
 
 export function generateExamCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -1160,42 +1337,56 @@ export async function fetchResultDetail(attemptId: string): Promise<ResultDetail
   // Fetch exam_questions to get question order
   const { data: eqRows } = await supabase
     .from('exam_questions')
-    .select('question_id')
-    .eq('exam_id', attempt.exam_id);
-  const questionIds = (eqRows ?? []).map((r) => (r as { question_id: string }).question_id);
+    .select('question_id, question_snapshot, sort_order')
+    .eq('exam_id', attempt.exam_id)
+    .order('sort_order');
+  const questionIds = (eqRows ?? []).map((r) => {
+    const row = r as { question_id: string | null; question_snapshot?: { id?: string } | null };
+    return row.question_id ?? row.question_snapshot?.id ?? null;
+  }).filter((id): id is string => !!id);
   if (questionIds.length === 0) {
     return buildResultDetail(attempt, (examRow as { name: string }).name, [], attempt.answers ?? {});
   }
 
-  // Fetch questions with options and ladder data
-  const { data: qRows } = await supabase
-    .from('questions')
-    .select('id, question, type')
-    .in('id', questionIds);
-  const qMap = new Map(
-    (qRows ?? []).map((q) => [q.id, q as { id: string; question: string; type: string }])
-  );
-
-  const { data: optRows } = await supabase
-    .from('question_options')
-    .select('question_id, label, is_correct')
-    .in('question_id', questionIds);
+  // Prefer the immutable exam snapshot. Legacy exams fall back to live question rows.
+  type Snapshot = { id: string; question: string; type: string; options?: Array<{ label: string; isCorrect: boolean }>; ladderData?: { answerLadderJson?: string | null } | null };
+  const snapshotRows = (eqRows ?? []) as Array<{ question_id: string; question_snapshot: Snapshot | null; sort_order: number }>;
+  const useSnapshots = snapshotRows.length > 0 && snapshotRows.every((r) => !!r.question_snapshot);
+  const qMap = new Map<string, { id: string; question: string; type: string }>();
   const optsByQuestion = new Map<string, Array<{ label: string; is_correct: boolean }>>();
-  (optRows ?? []).forEach((o) => {
-    const row = o as { question_id: string; label: string; is_correct: boolean };
-    if (!optsByQuestion.has(row.question_id)) optsByQuestion.set(row.question_id, []);
-    optsByQuestion.get(row.question_id)!.push({ label: row.label, is_correct: row.is_correct });
-  });
-
-  const { data: ladderRows } = await supabase
-    .from('ladder_questions')
-    .select('question_id, answer_ladder_json')
-    .in('question_id', questionIds);
   const ladderByQuestion = new Map<string, string | null>();
-  (ladderRows ?? []).forEach((l) => {
-    const row = l as { question_id: string; answer_ladder_json: string | null };
-    ladderByQuestion.set(row.question_id, row.answer_ladder_json);
-  });
+
+  if (useSnapshots) {
+    snapshotRows.forEach((r) => {
+      const q = r.question_snapshot!;
+      qMap.set(q.id, { id: q.id, question: q.question, type: q.type });
+      optsByQuestion.set(q.id, (q.options ?? []).map((o) => ({ label: o.label, is_correct: o.isCorrect })));
+      ladderByQuestion.set(q.id, q.ladderData?.answerLadderJson ?? null);
+    });
+  } else {
+    const { data: qRows } = await supabase
+      .from('questions')
+      .select('id, question, type')
+      .in('id', questionIds);
+    (qRows ?? []).forEach((q) => qMap.set(q.id, q as { id: string; question: string; type: string }));
+    const { data: optRows } = await supabase
+      .from('question_options')
+      .select('question_id, label, is_correct')
+      .in('question_id', questionIds);
+    (optRows ?? []).forEach((o) => {
+      const row = o as { question_id: string; label: string; is_correct: boolean };
+      if (!optsByQuestion.has(row.question_id)) optsByQuestion.set(row.question_id, []);
+      optsByQuestion.get(row.question_id)!.push({ label: row.label, is_correct: row.is_correct });
+    });
+    const { data: ladderRows } = await supabase
+      .from('ladder_questions')
+      .select('question_id, answer_ladder_json')
+      .in('question_id', questionIds);
+    (ladderRows ?? []).forEach((l) => {
+      const row = l as { question_id: string; answer_ladder_json: string | null };
+      ladderByQuestion.set(row.question_id, row.answer_ladder_json);
+    });
+  }
 
   const questionReviews: QuestionReview[] = questionIds.map((qid) => {
     const q = qMap.get(qid);
