@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Save, Plus, Trash2, Upload, Image as ImageIcon, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,8 @@ import { cn } from '@/utils/cn';
 export function QuestionEditorPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const presetSetId = searchParams.get('setId');
   const isEdit = !!id && id !== 'new';
   const {
     categories, loadQuestions, loadCategories, createQuestion, updateQuestion,
@@ -21,6 +23,7 @@ export function QuestionEditorPage() {
   const [type, setType] = useState<QuestionType>('multiple_choice');
   const [questionText, setQuestionText] = useState('');
   const [categoryId, setCategoryId] = useState<string>('');
+  const [questionSetId, setQuestionSetId] = useState<string | null>(presetSetId);
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [points, setPoints] = useState(10);
   const [explanation, setExplanation] = useState('');
@@ -42,10 +45,12 @@ export function QuestionEditorPage() {
   // Load existing question
   useEffect(() => {
     loadCategories();
+    if (!isEdit && presetSetId) setQuestionSetId(presetSetId);
     if (isEdit) {
       loadQuestions().then(() => {
         const q = useTeacherStore.getState().questions.find((q) => q.id === id);
         if (q) {
+          setQuestionSetId(q.questionSetId ?? null);
           setType(q.type);
           setQuestionText(q.question);
           setCategoryId(q.categoryId ?? '');
@@ -100,6 +105,7 @@ export function QuestionEditorPage() {
     setSaving(true);
     try {
       const input = {
+        questionSetId,
         categoryId: categoryId || null,
         type,
         question: questionText,
