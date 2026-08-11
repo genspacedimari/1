@@ -80,7 +80,15 @@ export function BottomNav() {
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md items-center justify-around gap-1 p-2 md:hidden"
-      style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
+      style={{
+        // Android Chrome (non-PWA tabs) reports env(safe-area-inset-bottom)
+        // as 0 — unlike iOS, it has no home-indicator concept — so a bare
+        // "0.5rem + env(...)" collapses to a razor-thin 8px gap and the
+        // pill ends up hugging the very edge of the viewport. Give it a
+        // real floor so it always sits comfortably clear of the edge,
+        // and let env() add extra room on devices that do report it.
+        paddingBottom: 'max(1rem, calc(0.5rem + env(safe-area-inset-bottom)))',
+      }}
     >
       <div className="glass flex w-full items-center justify-around rounded-3xl px-2 py-2">
         {items.map((item) => (
