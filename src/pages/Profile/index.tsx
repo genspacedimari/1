@@ -558,6 +558,13 @@ function DetailRow({
   );
 }
 
+interface BadgeAward {
+  id: string;
+  code: string;
+  name: string;
+  placement: string | null;
+}
+
 interface AcademicData {
   schoolName: string | null;
   className: string | null;
@@ -574,6 +581,7 @@ interface AcademicData {
 
 function AcademicInfoCard({ profile }: { profile: { id: string; schoolId?: string | null; schoolName?: string | null; xp: number; level: number } }) {
   const [data, setData] = useState<AcademicData | null>(null);
+  const [badges, setBadges] = useState<BadgeAward[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -586,7 +594,7 @@ function AcademicInfoCard({ profile }: { profile: { id: string; schoolId?: strin
           .select('id, placement, genspace_badges!inner(code, name)')
           .eq('user_id', sid)
           .order('awarded_at', { ascending: false });
-        const userBadges = (badgeRows ?? []).map((row: any) => ({
+        const userBadges: BadgeAward[] = (badgeRows ?? []).map((row: any) => ({
           id: row.id,
           code: row.genspace_badges?.code ?? '',
           name: row.genspace_badges?.name ?? '',
