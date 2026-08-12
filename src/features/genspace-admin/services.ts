@@ -1,0 +1,196 @@
+import { supabase } from '@/services/supabaseClient';
+import type { AdminQuiz, AdminQuizQuestion, Competition, ProfileSearchResult } from './types';
+
+function normalizeQuiz(row: any): AdminQuiz {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description ?? null,
+    difficulty: row.difficulty,
+    category: row.category,
+    questionCount: row.question_count ?? 0,
+    estimatedMinutes: row.estimated_minutes ?? 10,
+    xpReward: row.xp_reward ?? 50,
+    quizData: Array.isArray(row.quiz_data) ? row.quiz_data : [],
+    isPublished: Boolean(row.is_published),
+    createdAt: row.created_at,
+  };
+}
+
+export async function listOfficialQuizzes(): Promise<AdminQuiz[]> {
+  const { data, error } = await supabase.from('official_quizzes').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(normalizeQuiz);
+}
+
+export async function saveOfficialQuiz(input: {
+  id?: string;
+  title: string;
+  description: string;
+  difficulty: AdminQuiz['difficulty'];
+  category: string;
+  estimatedMinutes: number;
+  xpReward: number;
+  quizData: AdminQuizQuestion[];
+  isPublished: boolean;
+}) {
+  const payload = {
+    title: input.title.trim(),
+    description: input.description.trim() || null,
+    difficulty: input.difficulty,
+    category: input.category.trim() || 'PLC Basic',
+    question_count: input.quizData.length,
+    estimated_minutes: input.estimatedMinutes,
+    xp_reward: input.xpReward,
+    quiz_data: input.quizData,
+    is_published: input.isPublished,
+  };
+  const query = input.id
+    ? supabase.from('official_quizzes').update(payload).eq('id', input.id).select('*').single()
+    : supabase.from('official_quizzes').insert(payload).select('*').single();
+  const { data, error } = await query;
+  if (error) throw error;
+  return normalizeQuiz(data);
+}
+
+export async function deleteOfficialQuiz(id: string) {
+  const { error } = await supabase.from('official_quizzes').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function listPracticeQuizzes(): Promise<AdminQuiz[]> {
+  const { data, error } = await supabase.from('practice_quizzes').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(normalizeQuiz);
+}
+
+export async function savePracticeQuiz(input: {
+  id?: string;
+  title: string;
+  description: string;
+  difficulty: AdminQuiz['difficulty'];
+  category: string;
+  estimatedMinutes: number;
+  xpReward: number;
+  quizData: AdminQuizQuestion[];
+  isPublished: boolean;
+}) {
+  const payload = {
+    title: input.title.trim(),
+    description: input.description.trim() || null,
+    difficulty: input.difficulty,
+    category: input.category.trim() || 'PLC Basic',
+    question_count: input.quizData.length,
+    estimated_minutes: input.estimatedMinutes,
+    xp_reward: input.xpReward,
+    quiz_data: input.quizData,
+    is_published: input.isPublished,
+  };
+  const query = input.id
+    ? supabase.from('practice_quizzes').update(payload).eq('id', input.id).select('*').single()
+    : supabase.from('practice_quizzes').insert(payload).select('*').single();
+  const { data, error } = await query;
+  if (error) throw error;
+  return normalizeQuiz(data);
+}
+
+export async function deletePracticeQuiz(id: string) {
+  const { error } = await supabase.from('practice_quizzes').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function listCompetitions(): Promise<Competition[]> {
+  const { data, error } = await supabase
+    .from('genspace_competitions')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description ?? null,
+    accessCode: r.access_code,
+    status: r.status,
+    startAt: r.start_at,
+    endAt: r.end_at,
+    maxParticipants: r.max_participants,
+    badgePrefix: r.badge_prefix,
+    durationMinutes: r.duration_minutes ?? 30,
+    questionCount: r.question_count ?? 0,
+    quizData: Array.isArray(r.quiz_data) ? r.quiz_data : [],
+    createdAt: r.created_at,
+  }));
+}
+
+export async function saveCompetition(input: {
+  id?: string;
+  name: string;
+  description: string;
+  accessCode: string;
+  status: Competition['status'];
+  startAt: string | null;
+  endAt: string | null;
+  maxParticipants: number | null;
+  badgePrefix: string;
+  durationMinutes: number;
+  quizData: AdminQuizQuestion[];
+}) {
+  const payload = {
+    name: input.name.trim(),
+    description: input.description.trim() || null,
+    access_code: input.accessCode.trim().toUpperCase(),
+    status: input.status,
+    start_at: input.startAt || null,
+    end_at: input.endAt || null,
+    max_participants: input.maxParticipants,
+    badge_prefix: input.badgePrefix.trim().toUpperCase(),
+    duration_minutes: input.durationMinutes,
+    question_count: input.quizData.length,
+    quiz_data: input.quizData,
+  };
+  const query = input.id
+    ? supabase.from('genspace_competitions').update(payload).eq('id', input.id).select('*').single()
+    : supabase.from('genspace_competitions').insert(payload).select('*').single();
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCompetition(id: string) {
+  const { error } = await supabase.from('genspace_competitions').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function searchProfiles(query: string): Promise<ProfileSearchResult[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, username, email')
+    .or(`full_name.ilike.%${q}%,username.ilike.%${q}%,email.ilike.%${q}%`)
+    .order('full_name')
+    .limit(20);
+  if (error) throw error;
+  return (data ?? []).map((r: any) => ({ id: r.id, fullName: r.full_name, username: r.username, email: r.email }));
+}
+
+export async function awardCompetitionBadge(input: {
+  competitionId: string;
+  userId: string;
+  placement: '1st' | '2nd' | '3rd';
+  badgeCode: string;
+  badgeName: string;
+}) {
+  const { data: badge, error: badgeError } = await supabase
+    .from('genspace_badges')
+    .upsert({ code: input.badgeCode, name: input.badgeName, competition_id: input.competitionId, placement: input.placement }, { onConflict: 'code' })
+    .select('id')
+    .single();
+  if (badgeError) throw badgeError;
+
+  const { error } = await supabase.from('genspace_badge_awards').upsert(
+    { badge_id: badge.id, user_id: input.userId, competition_id: input.competitionId, placement: input.placement },
+    { onConflict: 'badge_id,user_id' },
+  );
+  if (error) throw error;
+}
