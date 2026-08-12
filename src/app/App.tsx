@@ -5,6 +5,7 @@ import { ThemeProvider } from './providers/ThemeProvider';
 import { AuthProvider } from './providers/AuthProvider';
 import { SettingsEffectsProvider } from './providers/SettingsEffectsProvider';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { DomLocalization } from '@/i18n/DomLocalization';
 
 export default function App() {
   // Global switch for the "Animations" setting — framer-motion honors
@@ -14,6 +15,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
+      <DomLocalization />
       <SettingsEffectsProvider>
         <MotionConfig reducedMotion={animations ? 'never' : 'always'}>
           <AuthProvider>
