@@ -343,7 +343,7 @@ export async function ensureProfile(user: User): Promise<void> {
     full_name: fullName,
     username,
     email: user.email ?? '',
-    role: role === 'admin' ? 'student' : role,
+    role,
   });
   if (error) {
     // If it's a duplicate, that's fine — profile already exists
