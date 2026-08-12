@@ -581,6 +581,18 @@ function AcademicInfoCard({ profile }: { profile: { id: string; schoolId?: strin
     async function load() {
       try {
         const sid = profile.id;
+        const { data: badgeRows } = await supabase
+          .from('genspace_badge_awards')
+          .select('id, placement, genspace_badges!inner(code, name)')
+          .eq('user_id', sid)
+          .order('awarded_at', { ascending: false });
+        const userBadges = (badgeRows ?? []).map((row: any) => ({
+          id: row.id,
+          code: row.genspace_badges?.code ?? '',
+          name: row.genspace_badges?.name ?? '',
+          placement: row.placement ?? null,
+        }));
+
         // Fetch student_progress
         const { data: progress } = await supabase
           .from('student_progress')
@@ -675,6 +687,7 @@ function AcademicInfoCard({ profile }: { profile: { id: string; schoolId?: strin
         }
 
         if (!cancelled) {
+          setBadges(userBadges);
           setData({
             schoolName: profile.schoolName ?? null,
             className,
@@ -734,6 +747,30 @@ function AcademicInfoCard({ profile }: { profile: { id: string; schoolId?: strin
           <RankCard label="Global" rank={data.globalRank} icon={Trophy} color="#F26B3A" />
           <RankCard label="Community" rank={data.schoolRank} icon={Award} color="#0891B2" />
           <RankCard label="Class" rank={data.classRank} icon={Medal} color="#D97706" />
+        </div>
+
+        <div>
+          <div className="mb-2 flex items-center gap-2">
+            <Award size={16} className="text-primary" />
+            <h3 className="text-sm font-semibold">Official GENSPACE Badges</h3>
+          </div>
+          {badges.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Belum ada badge resmi GENSPACE.</p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {badges.map((badge) => (
+                <div key={badge.id} className="flex items-center gap-3 rounded-2xl border border-border p-3 dark:border-border-dark">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    {badge.placement === '1st' ? '🥇' : badge.placement === '2nd' ? '🥈' : '🥉'}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{badge.name}</p>
+                    <p className="text-xs text-muted-foreground">{badge.code}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* XP Progress */}
