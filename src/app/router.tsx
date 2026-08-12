@@ -25,6 +25,8 @@ const ProfilePage = lazy(() => import('@/pages/Profile'));
 const RankingPage = lazy(() => import('@/pages/Ranking'));
 const SettingsPage = lazy(() => import('@/pages/Settings'));
 const AdminDashboardPage = lazy(() => import('@/pages/AdminDashboard'));
+const AdminQuizContentPage = lazy(() => import('@/pages/AdminDashboard/QuizContentPage'));
+const AdminCompetitionPage = lazy(() => import('@/pages/AdminDashboard/CompetitionPage'));
 const LoginPage = lazy(() => import('@/pages/Login'));
 const RegisterPage = lazy(() => import('@/pages/Register'));
 const ForgotPasswordPage = lazy(() => import('@/pages/ForgotPassword'));
@@ -261,6 +263,9 @@ export const router = createBrowserRouter([
           </RequireAuth>
         ),
       },
+      { path: 'admin/practice', element: <RequireAuth roles={['admin']}>{withSuspense(<AdminQuizContentPage kind="practice" />)}</RequireAuth> },
+      { path: 'admin/official', element: <RequireAuth roles={['admin']}>{withSuspense(<AdminQuizContentPage kind="official" />)}</RequireAuth> },
+      { path: 'admin/competition', element: <RequireAuth roles={['admin']}>{withSuspense(<AdminCompetitionPage />)}</RequireAuth> },
       { path: 'settings', element: withSuspense(<SettingsPage />) },
     ],
   },
