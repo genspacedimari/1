@@ -108,6 +108,28 @@ export async function fetchOfficialQuizzes(): Promise<OfficialQuiz[]> {
   return (data as OfficialQuizRow[]).map(rowToQuiz);
 }
 
+export async function fetchPracticeQuizzes(): Promise<OfficialQuiz[]> {
+  const { data, error } = await supabase
+    .from('practice_quizzes')
+    .select('*')
+    .eq('is_published', true)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    thumbnailUrl: row.thumbnail_url,
+    difficulty: row.difficulty as OfficialQuiz['difficulty'],
+    questionCount: row.question_count,
+    estimatedMinutes: row.estimated_minutes,
+    xpReward: row.xp_reward,
+    category: row.category,
+    quizData: Array.isArray(row.quiz_data) ? (row.quiz_data as QuizQuestion[]) : [],
+    createdAt: row.created_at,
+  }));
+}
+
 export async function fetchOfficialQuiz(id: string): Promise<OfficialQuiz | null> {
   const { data, error } = await supabase
     .from('official_quizzes')
