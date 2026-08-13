@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Chrome as Home, Cpu, User, Settings, Presentation } from 'lucide-react';
+import { Chrome as Home, Cpu, User, Settings, Presentation, LayoutGrid } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAuthStore } from '@/stores/authStore';
 import { useT, type TranslationKey } from '@/i18n/translations';
@@ -24,22 +24,25 @@ function profileNav(isGuest: boolean): NavItem {
   return { to: '/profile', labelKey: isGuest ? 'nav_guest' : 'nav_profile', icon: User };
 }
 
-/** Teacher nav — only shown to authenticated teachers. */
+/**
+ * Teacher Portal nav — Bank Soal, Community management, Classes, Students,
+ * exam scheduling, etc. Reachable by both 'teacher' and 'admin' roles at
+ * the route level (see /teacher's RequireAuth roles=['teacher','admin']),
+ * so both roles need this nav item, not just teachers.
+ */
 const TEACHER_NAV: NavItem = { to: '/teacher', labelKey: 'nav_teacher', icon: Presentation };
 
 /**
- * Admin nav — links to the Content Center (/admin), where quiz/practice/
- * competition content is managed. Previously admins got the TEACHER_NAV
- * item instead (pointing at /teacher), so after leaving the one-time
- * post-login redirect to /admin, there was no way back to it from the
- * nav bar at all.
+ * Content Center nav — where admin manages official/practice quizzes and
+ * competitions (/admin and its sub-pages). This is SEPARATE from the
+ * Teacher Portal above; admin needs both, not one or the other.
  */
-const ADMIN_NAV: NavItem = { to: '/admin', labelKey: 'nav_admin', icon: Presentation };
+const ADMIN_NAV: NavItem = { to: '/admin', labelKey: 'nav_admin', icon: LayoutGrid };
 
 function buildNav(isGuest: boolean, role?: string): NavItem[] {
   const items = [...BASE_NAV, profileNav(isGuest)];
   if (!isGuest && role === 'admin') {
-    items.splice(3, 0, ADMIN_NAV);
+    items.splice(3, 0, ADMIN_NAV, TEACHER_NAV);
   } else if (!isGuest && role === 'teacher') {
     items.splice(3, 0, TEACHER_NAV);
   }
