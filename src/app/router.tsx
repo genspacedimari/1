@@ -8,13 +8,6 @@ const HomePage = lazy(() => import('@/pages/Home'));
 const ProjectManagerPage = lazy(() => import('@/pages/ProjectManager'));
 const PlcSimulatorPage = lazy(() => import('@/pages/PlcSimulator'));
 const QuizPage = lazy(() => import('@/pages/Quiz'));
-// NOTE: there used to be a duplicate, stale copy of these two pages under
-// `@/pages/Quiz/`. That copy never fetched admin-published practice quizzes
-// (quizSvc.fetchPracticeQuizzes()) and ignored `location.state.questions`,
-// which is why practice content created in /admin/practice never showed up
-// for students. The `@/features/quiz/` versions are the real, maintained ones.
-const PracticePickerPage = lazy(() => import('@/features/quiz/PracticePickerPage'));
-const PracticePlayerPage = lazy(() => import('@/features/quiz/PracticePlayerPage'));
 const OfficialQuizPage = lazy(() => import('@/pages/Quiz/OfficialQuizPage'));
 const OfficialQuizPlayerPage = lazy(() => import('@/pages/Quiz/OfficialQuizPlayerPage'));
 const JoinExamPage = lazy(() => import('@/pages/Quiz/JoinExamPage'));
@@ -216,8 +209,6 @@ export const router = createBrowserRouter([
       { path: 'simulator', element: withSuspense(<ProjectManagerPage />) },
       { path: 'simulator/editor/:projectId', element: withSuspense(<PlcSimulatorPage />) },
       { path: 'quiz', element: withSuspense(<QuizPage />) },
-      { path: 'quiz/practice', element: withSuspense(<PracticePickerPage />) },
-      { path: 'quiz/practice/player', element: withSuspense(<PracticePlayerPage />) },
       { path: 'quiz/official', element: withSuspense(<OfficialQuizPage />) },
       { path: 'quiz/official/:id', element: withSuspense(<OfficialQuizPlayerPage />) },
       { path: 'quiz/join', element: withSuspense(<JoinExamPage />) },
@@ -268,7 +259,6 @@ export const router = createBrowserRouter([
           </RequireAuth>
         ),
       },
-      { path: 'admin/practice', element: <RequireAuth roles={['admin']}>{withSuspense(<AdminQuizContentPage kind="practice" />)}</RequireAuth> },
       { path: 'admin/official', element: <RequireAuth roles={['admin']}>{withSuspense(<AdminQuizContentPage kind="official" />)}</RequireAuth> },
       { path: 'admin/competition', element: <RequireAuth roles={['admin']}>{withSuspense(<AdminCompetitionPage />)}</RequireAuth> },
       { path: 'settings', element: withSuspense(<SettingsPage />) },
