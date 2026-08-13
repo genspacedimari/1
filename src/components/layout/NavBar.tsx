@@ -27,9 +27,20 @@ function profileNav(isGuest: boolean): NavItem {
 /** Teacher nav — only shown to authenticated teachers. */
 const TEACHER_NAV: NavItem = { to: '/teacher', labelKey: 'nav_teacher', icon: Presentation };
 
+/**
+ * Admin nav — links to the Content Center (/admin), where quiz/practice/
+ * competition content is managed. Previously admins got the TEACHER_NAV
+ * item instead (pointing at /teacher), so after leaving the one-time
+ * post-login redirect to /admin, there was no way back to it from the
+ * nav bar at all.
+ */
+const ADMIN_NAV: NavItem = { to: '/admin', labelKey: 'nav_admin', icon: Presentation };
+
 function buildNav(isGuest: boolean, role?: string): NavItem[] {
   const items = [...BASE_NAV, profileNav(isGuest)];
-  if (!isGuest && (role === 'teacher' || role === 'admin')) {
+  if (!isGuest && role === 'admin') {
+    items.splice(3, 0, ADMIN_NAV);
+  } else if (!isGuest && role === 'teacher') {
     items.splice(3, 0, TEACHER_NAV);
   }
   return items;
