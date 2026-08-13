@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Award, Search, Upload, X, CircleCheck as CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Award, Search, Upload, X, CircleCheck as CheckCircle2, Folder, ChevronDown, ChevronRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import * as admin from '@/features/genspace-admin/services';
-import type { Competition, ProfileSearchResult, AdminQuizQuestion } from '@/features/genspace-admin/types';
+import type { Competition, ProfileSearchResult, AdminQuizQuestion, BankQuestion } from '@/features/genspace-admin/types';
 
 export default function CompetitionPage() {
   const navigate = useNavigate();
@@ -19,11 +19,12 @@ export default function CompetitionPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [showImport, setShowImport] = useState(false);
-  const [bank, setBank] = useState<AdminQuizQuestion[]>([]);
+  const [bank, setBank] = useState<BankQuestion[]>([]);
   const [bankLoading, setBankLoading] = useState(false);
   const [bankError, setBankError] = useState<string | null>(null);
   const [bankSearch, setBankSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [expandedSetIds, setExpandedSetIds] = useState<Set<string>>(new Set());
 
   const load = async () => { setLoading(true); try { setItems(await admin.listCompetitions()); } catch (e) { setError(e instanceof Error ? e.message : 'Gagal memuat kompetisi.'); } finally { setLoading(false); } };
   useEffect(() => { load(); }, []);
@@ -46,6 +47,7 @@ export default function CompetitionPage() {
   const openImport = async () => {
     setShowImport(true);
     setSelectedIds(new Set());
+    setExpandedSetIds(new Set());
     setBankSearch('');
     if (bank.length === 0) {
       setBankLoading(true); setBankError(null);
@@ -57,9 +59,27 @@ export default function CompetitionPage() {
     setSelectedIds((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   };
 
+  const toggleExpand = (setId: string) => {
+    setExpandedSetIds((prev) => { const next = new Set(prev); if (next.has(setId)) next.delete(setId); else next.add(setId); return next; });
+  };
+
+  // Select/deselect every question that belongs to one imported folder (Question Set) at once,
+  // so a teacher's Excel-imported batch can be picked without clicking each question one by one.
+  const toggleFolder = (ids: string[]) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const allSelected = ids.every((id) => next.has(id));
+      ids.forEach((id) => { if (allSelected) next.delete(id); else next.add(id); });
+      return next;
+    });
+  };
+
   const confirmImport = () => {
     if (selectedIds.size === 0) { setShowImport(false); return; }
-    const picked = bank.filter((q) => selectedIds.has(q.id));
+    const picked = bank
+      .filter((q) => selectedIds.has(q.id))
+      // Strip the folder metadata — that's only needed for the picker UI, not for the saved quiz.
+      .map(({ questionSetId: _s, questionSetName: _n, ...q }): AdminQuizQuestion => q);
     // Drop the placeholder blank question if it's still empty and untouched,
     // so importing doesn't leave a dangling empty "Soal 1" behind.
     const stillBlank = form.quizData.length === 1 && !form.quizData[0].question.trim();
@@ -69,6 +89,22 @@ export default function CompetitionPage() {
   };
 
   const filteredBank = bank.filter((q) => q.question.toLowerCase().includes(bankSearch.toLowerCase()));
+
+  // Group the picker into "folders" (Question Sets, e.g. an Excel-imported batch) plus
+  // any standalone questions that were never placed in a set.
+  const { folders, standalone } = useMemo(() => {
+    const folderMap = new Map<string, { name: string; questions: BankQuestion[] }>();
+    const loose: BankQuestion[] = [];
+    for (const q of filteredBank) {
+      if (q.questionSetId) {
+        if (!folderMap.has(q.questionSetId)) folderMap.set(q.questionSetId, { name: q.questionSetName ?? 'Tanpa nama', questions: [] });
+        folderMap.get(q.questionSetId)!.questions.push(q);
+      } else {
+        loose.push(q);
+      }
+    }
+    return { folders: Array.from(folderMap.entries()).map(([id, v]) => ({ id, ...v })), standalone: loose };
+  }, [filteredBank]);
 
   return <div className="mx-auto max-w-4xl space-y-5">
     <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3"><button onClick={() => navigate('/admin')} className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/40"><ArrowLeft size={20} /></button><div><h1 className="font-display text-xl font-semibold">🏅 GENSPACE Competition</h1><p className="text-xs text-muted-foreground">Kompetisi resmi GENSPACE Team</p></div></div><Button onClick={() => { setSelected(null); setForm({ name: '', description: '', accessCode: 'GSC26', status: 'draft', startAt: '', endAt: '', maxParticipants: '', badgePrefix: 'GSC26', durationMinutes: 30, quizData: [blankQuestion()] }); }}><Plus size={16} /> Buat Kompetisi</Button></div>
@@ -105,7 +141,7 @@ export default function CompetitionPage() {
           <div className="flex items-center justify-between border-b border-border p-5 dark:border-border-dark">
             <div>
               <h2 className="font-display text-base font-semibold">Import dari Bank Soal</h2>
-              <p className="text-xs text-muted-foreground">Ambil soal dari bank soal semua guru (multiple choice saja).</p>
+              <p className="text-xs text-muted-foreground">Pilih 1 folder soal (misalnya hasil import Excel) atau soal individu — tidak perlu satu-satu.</p>
             </div>
             <button onClick={() => setShowImport(false)} className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/40 dark:hover:bg-white/5"><X size={18} /></button>
           </div>
@@ -133,7 +169,54 @@ export default function CompetitionPage() {
               </p>
             ) : (
               <div className="space-y-2">
-                {filteredBank.map((q) => {
+                {folders.map((f) => {
+                  const ids = f.questions.map((q) => q.id);
+                  const selectedCount = ids.filter((id) => selectedIds.has(id)).length;
+                  const allSelected = selectedCount === ids.length;
+                  const partial = selectedCount > 0 && !allSelected;
+                  const expanded = expandedSetIds.has(f.id);
+                  return (
+                    <div key={f.id} className={`rounded-2xl border transition-colors ${allSelected ? 'border-primary bg-primary/5' : partial ? 'border-primary/40' : 'border-border dark:border-border-dark'}`}>
+                      <div className="flex w-full items-start gap-3 p-3 text-left">
+                        <button type="button" onClick={() => toggleFolder(ids)} className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${allSelected ? 'border-primary bg-primary text-primary-foreground' : partial ? 'border-primary bg-primary/20' : 'border-border dark:border-border-dark'}`}>
+                          {allSelected && <CheckCircle2 size={14} />}
+                          {partial && <div className="h-2 w-2 rounded-sm bg-primary" />}
+                        </button>
+                        <button type="button" onClick={() => toggleFolder(ids)} className="min-w-0 flex-1 text-left">
+                          <p className="flex items-center gap-1.5 text-sm font-medium"><Folder size={14} className="shrink-0 text-primary" /> {f.name}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{f.questions.length} soal · folder hasil import{selectedCount > 0 ? ` · ${selectedCount} dipilih` : ''}</p>
+                        </button>
+                        <button type="button" onClick={() => toggleExpand(f.id)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/40">
+                          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </button>
+                      </div>
+                      {expanded && (
+                        <div className="space-y-1.5 border-t border-border p-3 pt-2 dark:border-border-dark">
+                          {f.questions.map((q) => {
+                            const isSelected = selectedIds.has(q.id);
+                            return (
+                              <button
+                                key={q.id}
+                                type="button"
+                                onClick={() => toggleSelect(q.id)}
+                                className={`flex w-full items-start gap-2.5 rounded-xl border p-2.5 text-left transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/30 dark:border-border-dark'}`}
+                              >
+                                <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-border dark:border-border-dark'}`}>
+                                  {isSelected && <CheckCircle2 size={11} />}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="line-clamp-2 text-xs font-medium">{q.question}</p>
+                                  <p className="mt-0.5 text-[11px] text-muted-foreground">{q.options.length} pilihan · {q.difficulty} · {q.points} poin</p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {standalone.map((q) => {
                   const isSelected = selectedIds.has(q.id);
                   return (
                     <button
@@ -147,7 +230,7 @@ export default function CompetitionPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="line-clamp-2 text-sm font-medium">{q.question}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{q.options.length} pilihan · {q.difficulty} · {q.points} poin</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{q.options.length} pilihan · {q.difficulty} · {q.points} poin · soal individu</p>
                       </div>
                     </button>
                   );
