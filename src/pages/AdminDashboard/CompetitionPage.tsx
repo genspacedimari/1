@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Award, Search } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Award, Search, Upload, X, CircleCheck as CheckCircle2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import * as admin from '@/features/genspace-admin/services';
@@ -17,6 +17,13 @@ export default function CompetitionPage() {
   const blankQuestion = (): AdminQuizQuestion => ({ id: crypto.randomUUID(), type: 'multiple_choice', question: '', difficulty: 'easy', points: 10, explanation: '', options: [0,1,2,3].map(() => ({ label: '', isCorrect: false })), imageUrls: [] });
   const [form, setForm] = useState({ name: '', description: '', accessCode: 'GSC26', status: 'draft' as Competition['status'], startAt: '', endAt: '', maxParticipants: '', badgePrefix: 'GSC26', durationMinutes: 30, quizData: [blankQuestion()] });
   const [error, setError] = useState<string | null>(null);
+
+  const [showImport, setShowImport] = useState(false);
+  const [bank, setBank] = useState<AdminQuizQuestion[]>([]);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankError, setBankError] = useState<string | null>(null);
+  const [bankSearch, setBankSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const load = async () => { setLoading(true); try { setItems(await admin.listCompetitions()); } catch (e) { setError(e instanceof Error ? e.message : 'Gagal memuat kompetisi.'); } finally { setLoading(false); } };
   useEffect(() => { load(); }, []);
@@ -36,6 +43,33 @@ export default function CompetitionPage() {
     try { await admin.awardCompetitionBadge({ competitionId: selected.id, userId: user.id, placement, badgeCode: code, badgeName: `${placement.toUpperCase()} ${selected.badgePrefix}` }); alert(`Badge ${placement.toUpperCase()} ${selected.badgePrefix} diberikan ke ${user.fullName}.`); } catch (e) { setError(e instanceof Error ? e.message : 'Gagal memberi badge.'); }
   };
 
+  const openImport = async () => {
+    setShowImport(true);
+    setSelectedIds(new Set());
+    setBankSearch('');
+    if (bank.length === 0) {
+      setBankLoading(true); setBankError(null);
+      try { setBank(await admin.fetchImportableQuestions()); } catch (e) { setBankError(e instanceof Error ? e.message : 'Gagal memuat bank soal.'); } finally { setBankLoading(false); }
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  };
+
+  const confirmImport = () => {
+    if (selectedIds.size === 0) { setShowImport(false); return; }
+    const picked = bank.filter((q) => selectedIds.has(q.id));
+    // Drop the placeholder blank question if it's still empty and untouched,
+    // so importing doesn't leave a dangling empty "Soal 1" behind.
+    const stillBlank = form.quizData.length === 1 && !form.quizData[0].question.trim();
+    const base = stillBlank ? [] : form.quizData;
+    setForm({ ...form, quizData: [...base, ...picked] });
+    setShowImport(false);
+  };
+
+  const filteredBank = bank.filter((q) => q.question.toLowerCase().includes(bankSearch.toLowerCase()));
+
   return <div className="mx-auto max-w-4xl space-y-5">
     <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3"><button onClick={() => navigate('/admin')} className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/40"><ArrowLeft size={20} /></button><div><h1 className="font-display text-xl font-semibold">🏅 GENSPACE Competition</h1><p className="text-xs text-muted-foreground">Kompetisi resmi GENSPACE Team</p></div></div><Button onClick={() => { setSelected(null); setForm({ name: '', description: '', accessCode: 'GSC26', status: 'draft', startAt: '', endAt: '', maxParticipants: '', badgePrefix: 'GSC26', durationMinutes: 30, quizData: [blankQuestion()] }); }}><Plus size={16} /> Buat Kompetisi</Button></div>
     {error && <div className="rounded-2xl bg-red-500/10 px-4 py-3 text-sm text-red-600">{error}</div>}
@@ -45,7 +79,10 @@ export default function CompetitionPage() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div><p className="text-sm font-semibold">Soal Kompetisi</p><p className="text-xs text-muted-foreground">Setiap competition punya exam/soal sendiri.</p></div>
-          <Button size="sm" variant="outline" onClick={() => setForm({ ...form, quizData: [...form.quizData, blankQuestion()] })}><Plus size={15} /> Tambah Soal</Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={openImport}><Upload size={15} /> Import dari Bank Soal</Button>
+            <Button size="sm" variant="outline" onClick={() => setForm({ ...form, quizData: [...form.quizData, blankQuestion()] })}><Plus size={15} /> Tambah Soal</Button>
+          </div>
         </div>
         {form.quizData.map((q, qi) => (
           <div key={q.id} className="rounded-2xl border border-border p-4 dark:border-border-dark">
@@ -61,6 +98,74 @@ export default function CompetitionPage() {
     <Card><CardContent className="p-0">{loading ? <div className="p-8 text-center text-sm text-muted-foreground">Memuat...</div> : items.map(c => <div key={c.id} className={`flex items-center gap-3 border-b border-border p-4 last:border-b-0 dark:border-border-dark ${selected?.id === c.id ? 'bg-primary/5' : ''}`}><div className="min-w-0 flex-1"><p className="font-medium">{c.name}</p><p className="mt-1 text-xs text-muted-foreground">Kode: <b>{c.accessCode}</b> · Badge: <b>{c.badgePrefix}</b> · {c.status}</p></div><button onClick={() => edit(c)} className="rounded-xl px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/10">Kelola</button><button onClick={async () => { if (confirm('Hapus kompetisi ini?')) { await admin.deleteCompetition(c.id); load(); } }} className="rounded-xl p-2 text-muted-foreground hover:text-red-500"><Trash2 size={16} /></button></div>)}</CardContent></Card>
 
     {selected && <Card><CardContent className="space-y-4 p-5"><div><p className="text-sm font-semibold">Badge juara — {selected.name}</p><p className="mt-1 text-xs text-muted-foreground">Cari user lalu berikan badge resmi 1st / 2nd / 3rd.</p></div><div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-2xl border border-border bg-surface px-4 py-3 text-sm outline-none focus:border-primary dark:border-border-dark dark:bg-surface-dark pl-9" placeholder="Cari nama, username, atau email..." /></div><div className="space-y-2">{users.map(u => <div key={u.id} className="flex items-center gap-3 rounded-2xl border border-border p-3 dark:border-border-dark"><div className="min-w-0 flex-1"><p className="text-sm font-medium">{u.fullName}</p><p className="text-xs text-muted-foreground">@{u.username} · {u.email}</p></div><div className="flex gap-2"><button onClick={() => award(u, '1st')} className="rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">🥇 1ST {selected.badgePrefix}</button><button onClick={() => award(u, '2nd')} className="rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">🥈 2ND</button><button onClick={() => award(u, '3rd')} className="rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">🥉 3RD</button></div></div>)}</div><div className="rounded-2xl bg-muted/30 p-3 text-xs text-muted-foreground dark:bg-white/5"><Award size={14} className="mb-1" />Badge otomatis menggunakan format <b>1ST {selected.badgePrefix}</b>, <b>2ND {selected.badgePrefix}</b>, <b>3RD {selected.badgePrefix}</b>.</div></CardContent></Card>}
+
+    {showImport && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowImport(false)}>
+        <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-3xl bg-surface shadow-xl dark:bg-surface-dark" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between border-b border-border p-5 dark:border-border-dark">
+            <div>
+              <h2 className="font-display text-base font-semibold">Import dari Bank Soal</h2>
+              <p className="text-xs text-muted-foreground">Ambil soal dari bank soal semua guru (multiple choice saja).</p>
+            </div>
+            <button onClick={() => setShowImport(false)} className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/40 dark:hover:bg-white/5"><X size={18} /></button>
+          </div>
+
+          <div className="border-b border-border p-4 dark:border-border-dark">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={bankSearch}
+                onChange={(e) => setBankSearch(e.target.value)}
+                placeholder="Cari soal..."
+                className="w-full rounded-2xl border border-border bg-surface py-2.5 pl-9 pr-4 text-sm outline-none focus:border-primary dark:border-border-dark dark:bg-surface-dark"
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4">
+            {bankLoading ? (
+              <p className="p-6 text-center text-sm text-muted-foreground">Memuat bank soal...</p>
+            ) : bankError ? (
+              <p className="p-6 text-center text-sm text-red-500">{bankError}</p>
+            ) : filteredBank.length === 0 ? (
+              <p className="p-6 text-center text-sm text-muted-foreground">
+                {bank.length === 0 ? 'Belum ada soal di bank soal guru manapun.' : 'Tidak ada soal yang cocok.'}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {filteredBank.map((q) => {
+                  const isSelected = selectedIds.has(q.id);
+                  return (
+                    <button
+                      key={q.id}
+                      type="button"
+                      onClick={() => toggleSelect(q.id)}
+                      className={`flex w-full items-start gap-3 rounded-2xl border p-3 text-left transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/30 dark:border-border-dark'}`}
+                    >
+                      <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-border dark:border-border-dark'}`}>
+                        {isSelected && <CheckCircle2 size={14} />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-sm font-medium">{q.question}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{q.options.length} pilihan · {q.difficulty} · {q.points} poin</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-3 border-t border-border p-4 dark:border-border-dark">
+            <span className="text-xs text-muted-foreground">{selectedIds.size} soal dipilih</span>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowImport(false)}>Batal</Button>
+              <Button onClick={confirmImport} disabled={selectedIds.size === 0}>Import {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}</Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
   </div>;
 }
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block text-xs font-medium text-muted-foreground">{label}<div className="mt-1.5">{children}</div></label>; }
