@@ -1,15 +1,8 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Dumbbell, Trophy, Swords, ArrowRight } from 'lucide-react';
+import { Trophy, Swords, ArrowRight } from 'lucide-react';
 
 const items = [
-  {
-    to: '/admin/practice',
-    icon: Dumbbell,
-    title: '🎯 Mode Latihan',
-    description: 'Latihan resmi GENSPACE',
-    accent: 'bg-primary/10 text-primary',
-  },
   {
     to: '/admin/official',
     icon: Trophy,
