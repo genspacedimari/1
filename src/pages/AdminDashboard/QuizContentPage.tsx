@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Save, Pencil, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Pencil, Eye, EyeOff, Upload, X, Search, CircleCheck as CheckCircle2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import * as admin from '@/features/genspace-admin/services';
@@ -25,6 +25,13 @@ export default function QuizContentPage({ kind }: { kind: 'practice' | 'official
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [showImport, setShowImport] = useState(false);
+  const [bank, setBank] = useState<AdminQuizQuestion[]>([]);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankError, setBankError] = useState<string | null>(null);
+  const [bankSearch, setBankSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const load = async () => {
     setLoading(true);
@@ -112,6 +119,44 @@ export default function QuizContentPage({ kind }: { kind: 'practice' | 'official
     } catch (e) { setError(e instanceof Error ? e.message : 'Gagal menghapus.'); }
   };
 
+  const openImport = async () => {
+    setShowImport(true);
+    setSelectedIds(new Set());
+    setBankSearch('');
+    if (bank.length === 0) {
+      setBankLoading(true);
+      setBankError(null);
+      try {
+        setBank(await admin.fetchImportableQuestions());
+      } catch (e) {
+        setBankError(e instanceof Error ? e.message : 'Gagal memuat bank soal.');
+      } finally {
+        setBankLoading(false);
+      }
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const confirmImport = () => {
+    if (!editing || selectedIds.size === 0) { setShowImport(false); return; }
+    const picked = bank.filter((q) => selectedIds.has(q.id));
+    // Drop the placeholder blank question if it's still empty and untouched,
+    // so importing doesn't leave a dangling empty "Soal 1" behind.
+    const stillBlank = editing.quizData.length === 1 && !editing.quizData[0].question.trim();
+    const base = stillBlank ? [] : editing.quizData;
+    setEditing({ ...editing, quizData: [...base, ...picked] });
+    setShowImport(false);
+  };
+
+  const filteredBank = bank.filter((q) => q.question.toLowerCase().includes(bankSearch.toLowerCase()));
+
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <div className="flex items-center justify-between gap-3">
@@ -139,7 +184,13 @@ export default function QuizContentPage({ kind }: { kind: 'practice' | 'official
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Questions</h2><Button size="sm" variant="outline" onClick={() => setEditing({ ...editing, quizData: [...editing.quizData, EMPTY_Q()] })}><Plus size={15} /> Tambah Soal</Button></div>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Questions</h2>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={openImport}><Upload size={15} /> Import dari Bank Soal</Button>
+                <Button size="sm" variant="outline" onClick={() => setEditing({ ...editing, quizData: [...editing.quizData, EMPTY_Q()] })}><Plus size={15} /> Tambah Soal</Button>
+              </div>
+            </div>
             {editing.quizData.map((q, qi) => (
               <div key={q.id} className="rounded-2xl border border-border p-4 dark:border-border-dark">
                 <div className="mb-3 flex items-center justify-between"><span className="text-xs font-semibold text-primary">SOAL {qi + 1}</span><button onClick={() => setEditing({ ...editing, quizData: editing.quizData.filter((_, i) => i !== qi) })} className="text-muted-foreground hover:text-red-500"><Trash2 size={16} /></button></div>
@@ -160,6 +211,74 @@ export default function QuizContentPage({ kind }: { kind: 'practice' | 'official
         <Card><CardContent className="p-0">
           {loading ? <div className="p-8 text-center text-sm text-muted-foreground">Memuat...</div> : items.length === 0 ? <div className="p-8 text-center text-sm text-muted-foreground">Belum ada konten. Klik “Buat Baru”.</div> : items.map((item) => <div key={item.id} className="flex items-center gap-4 border-b border-border p-4 last:border-b-0 dark:border-border-dark"><div className="min-w-0 flex-1"><p className="font-medium">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.category} · {item.questionCount} soal · {item.difficulty}</p></div><span className={`flex items-center gap-1 text-xs ${item.isPublished ? 'text-emerald-600' : 'text-muted-foreground'}`}>{item.isPublished ? <Eye size={14} /> : <EyeOff size={14} />}{item.isPublished ? 'Published' : 'Draft'}</span><button onClick={() => setEditing(item)} className="rounded-xl p-2 text-muted-foreground hover:bg-muted/40 hover:text-primary"><Pencil size={16} /></button><button onClick={() => remove(item.id)} className="rounded-xl p-2 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"><Trash2 size={16} /></button></div>)}
         </CardContent></Card>
+      )}
+
+      {showImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowImport(false)}>
+          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-3xl bg-surface shadow-xl dark:bg-surface-dark" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border p-5 dark:border-border-dark">
+              <div>
+                <h2 className="font-display text-base font-semibold">Import dari Bank Soal</h2>
+                <p className="text-xs text-muted-foreground">Ambil soal dari bank soal semua guru (multiple choice saja).</p>
+              </div>
+              <button onClick={() => setShowImport(false)} className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/40 dark:hover:bg-white/5"><X size={18} /></button>
+            </div>
+
+            <div className="border-b border-border p-4 dark:border-border-dark">
+              <div className="relative">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={bankSearch}
+                  onChange={(e) => setBankSearch(e.target.value)}
+                  placeholder="Cari soal..."
+                  className="w-full rounded-2xl border border-border bg-surface py-2.5 pl-9 pr-4 text-sm outline-none focus:border-primary dark:border-border-dark dark:bg-surface-dark"
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {bankLoading ? (
+                <p className="p-6 text-center text-sm text-muted-foreground">Memuat bank soal...</p>
+              ) : bankError ? (
+                <p className="p-6 text-center text-sm text-red-500">{bankError}</p>
+              ) : filteredBank.length === 0 ? (
+                <p className="p-6 text-center text-sm text-muted-foreground">
+                  {bank.length === 0 ? 'Belum ada soal di bank soal guru manapun.' : 'Tidak ada soal yang cocok.'}
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {filteredBank.map((q) => {
+                    const isSelected = selectedIds.has(q.id);
+                    return (
+                      <button
+                        key={q.id}
+                        type="button"
+                        onClick={() => toggleSelect(q.id)}
+                        className={`flex w-full items-start gap-3 rounded-2xl border p-3 text-left transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/30 dark:border-border-dark'}`}
+                      >
+                        <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-border dark:border-border-dark'}`}>
+                          {isSelected && <CheckCircle2 size={14} />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="line-clamp-2 text-sm font-medium">{q.question}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{q.options.length} pilihan · {q.difficulty} · {q.points} poin</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-border p-4 dark:border-border-dark">
+              <span className="text-xs text-muted-foreground">{selectedIds.size} soal dipilih</span>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setShowImport(false)}>Batal</Button>
+                <Button onClick={confirmImport} disabled={selectedIds.size === 0}>Import {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}</Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
