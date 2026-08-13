@@ -71,6 +71,12 @@ export default function CommunityViewPage() {
   };
 
   if (!profile?.schoolId) {
+    // Teachers and admins can either create a new community or join an
+    // existing one. Students can only join. Creation itself lives in the
+    // /welcome wizard (same flow used right after signup) — we just make
+    // it reachable from here too, since previously the only way to reach
+    // it was a one-time redirect during onboarding.
+    const canCreate = profile?.role === 'teacher' || profile?.role === 'admin';
     return (
       <div className="mx-auto max-w-2xl space-y-4">
         <Header navigate={navigate} />
@@ -78,7 +84,14 @@ export default function CommunityViewPage() {
           <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
             <Building2 size={32} className="text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground">You haven't joined a community yet.</p>
-            <button onClick={() => navigate('/join-community')} className="text-sm font-medium text-primary hover:underline">Join a community</button>
+            <div className="flex items-center gap-4">
+              {canCreate && (
+                <button onClick={() => navigate('/welcome')} className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
+                  <Plus size={14} /> Create a community
+                </button>
+              )}
+              <button onClick={() => navigate('/join-community')} className="text-sm font-medium text-primary hover:underline">Join a community</button>
+            </div>
           </CardContent>
         </Card>
       </div>
