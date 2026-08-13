@@ -8,8 +8,13 @@ const HomePage = lazy(() => import('@/pages/Home'));
 const ProjectManagerPage = lazy(() => import('@/pages/ProjectManager'));
 const PlcSimulatorPage = lazy(() => import('@/pages/PlcSimulator'));
 const QuizPage = lazy(() => import('@/pages/Quiz'));
-const PracticePickerPage = lazy(() => import('@/pages/Quiz/PracticePickerPage'));
-const PracticePlayerPage = lazy(() => import('@/pages/Quiz/PracticePlayerPage'));
+// NOTE: there used to be a duplicate, stale copy of these two pages under
+// `@/pages/Quiz/`. That copy never fetched admin-published practice quizzes
+// (quizSvc.fetchPracticeQuizzes()) and ignored `location.state.questions`,
+// which is why practice content created in /admin/practice never showed up
+// for students. The `@/features/quiz/` versions are the real, maintained ones.
+const PracticePickerPage = lazy(() => import('@/features/quiz/PracticePickerPage'));
+const PracticePlayerPage = lazy(() => import('@/features/quiz/PracticePlayerPage'));
 const OfficialQuizPage = lazy(() => import('@/pages/Quiz/OfficialQuizPage'));
 const OfficialQuizPlayerPage = lazy(() => import('@/pages/Quiz/OfficialQuizPlayerPage'));
 const JoinExamPage = lazy(() => import('@/pages/Quiz/JoinExamPage'));
