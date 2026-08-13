@@ -1,5 +1,5 @@
 import { supabase } from '@/services/supabaseClient';
-import type { AdminQuiz, AdminQuizQuestion, BankQuestion, Competition, ProfileSearchResult } from './types';
+import type { AdminQuiz, AdminQuizQuestion, BankQuestion, Competition, CompetitionParticipant, ProfileSearchResult } from './types';
 
 function normalizeQuiz(row: any): AdminQuiz {
   return {
@@ -249,4 +249,77 @@ export async function awardCompetitionBadge(input: {
     { onConflict: 'badge_id,user_id' },
   );
   if (error) throw error;
+}
+
+/**
+ * Fetches the ranked leaderboard for a competition — everyone who has
+ * submitted a result, sorted by score desc then time used asc (faster
+ * finisher wins a tie). Requires the `genspace_competition_participants`
+ * table + `genspace_competition_participants_select_admin` RLS policy
+ * (20260813070000 migration) — without them this silently returns [].
+ *
+ * Also cross-references `genspace_badge_awards` so the "Kelola" panel can
+ * show which participants already hold a 1st/2nd/3rd badge for this
+ * competition.
+ */
+export async function fetchCompetitionParticipants(competitionId: string): Promise<CompetitionParticipant[]> {
+  const { data: rows, error } = await supabase
+    .from('genspace_competition_participants')
+    .select('*')
+    .eq('competition_id', competitionId)
+    .order('score', { ascending: false })
+    .order('time_used_seconds', { ascending: true });
+  if (error) throw error;
+  if (!rows || rows.length === 0) return [];
+
+  const userIds = rows.map((r: any) => r.user_id);
+  const [{ data: profiles }, { data: awards }] = await Promise.all([
+    supabase.from('profiles').select('id, full_name, username, email').in('id', userIds),
+    supabase.from('genspace_badge_awards').select('user_id, placement').eq('competition_id', competitionId),
+  ]);
+  const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+  const placementMap = new Map((awards ?? []).map((a: any) => [a.user_id, a.placement]));
+
+  return rows.map((r: any, i: number) => {
+    const p = profileMap.get(r.user_id);
+    return {
+      id: r.id,
+      userId: r.user_id,
+      fullName: p?.full_name ?? 'Unknown',
+      username: p?.username ?? '-',
+      email: p?.email ?? '-',
+      score: r.score,
+      correctCount: r.correct_count,
+      wrongCount: r.wrong_count,
+      timeUsedSeconds: r.time_used_seconds,
+      submittedAt: r.submitted_at,
+      rank: i + 1,
+      badgePlacement: placementMap.get(r.user_id) ?? null,
+    };
+  });
+}
+
+/**
+ * Awards 1st/2nd/3rd badges to the top 3 of a competition's leaderboard in
+ * one click, instead of searching and clicking each winner manually.
+ * Uses the same `awardCompetitionBadge` upsert under the hood, so
+ * re-running it after new submissions come in just corrects the winners
+ * (upsert on badge code / badge+user).
+ */
+export async function autoAssignCompetitionBadges(competitionId: string, badgePrefix: string): Promise<CompetitionParticipant[]> {
+  const leaderboard = await fetchCompetitionParticipants(competitionId);
+  const top3 = leaderboard.slice(0, 3);
+  const placements: Array<'1st' | '2nd' | '3rd'> = ['1st', '2nd', '3rd'];
+  for (let i = 0; i < top3.length; i++) {
+    const placement = placements[i];
+    const code = `${badgePrefix}-${placement.toUpperCase()}`;
+    await awardCompetitionBadge({
+      competitionId,
+      userId: top3[i].userId,
+      placement,
+      badgeCode: code,
+      badgeName: `${placement.toUpperCase()} ${badgePrefix}`,
+    });
+  }
+  return top3;
 }
