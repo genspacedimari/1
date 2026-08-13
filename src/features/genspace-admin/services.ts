@@ -1,5 +1,5 @@
 import { supabase } from '@/services/supabaseClient';
-import type { AdminQuiz, AdminQuizQuestion, Competition, ProfileSearchResult } from './types';
+import type { AdminQuiz, AdminQuizQuestion, BankQuestion, Competition, ProfileSearchResult } from './types';
 
 function normalizeQuiz(row: any): AdminQuiz {
   return {
@@ -19,14 +19,21 @@ function normalizeQuiz(row: any): AdminQuiz {
 
 /**
  * Fetches multiple-choice questions from ALL teachers' question banks,
- * for the "Import dari Bank Soal" feature on official/practice quiz
- * editing. Requires the `questions_select_admin` etc. RLS policies
- * (20260813060000 migration) — without them this silently returns [].
+ * for the "Import dari Bank Soal" feature on official/practice quiz and
+ * competition editing. Requires the `questions_select_admin` etc. RLS
+ * policies (20260813060000 migration) — without them this silently
+ * returns [].
  *
  * Only `multiple_choice` type is returned since AdminQuizQuestion only
  * supports that shape; ladder/image-only questions are skipped.
+ *
+ * Each question is tagged with the Question Set (folder) it belongs to
+ * — e.g. a batch imported from Excel — via `questionSetId`/
+ * `questionSetName`, so the picker UI can group by folder instead of
+ * listing hundreds of questions one by one. Standalone questions (never
+ * placed in a set) come back with both fields null.
  */
-export async function fetchImportableQuestions(): Promise<AdminQuizQuestion[]> {
+export async function fetchImportableQuestions(): Promise<BankQuestion[]> {
   const { data: questions, error } = await supabase
     .from('questions')
     .select('*')
@@ -37,10 +44,15 @@ export async function fetchImportableQuestions(): Promise<AdminQuizQuestion[]> {
   if (!questions || questions.length === 0) return [];
 
   const ids = questions.map((q: any) => q.id);
-  const [{ data: opts }, { data: imgs }] = await Promise.all([
+  const setIds = Array.from(new Set(questions.map((q: any) => q.question_set_id).filter(Boolean)));
+  const [{ data: opts }, { data: imgs }, { data: sets }] = await Promise.all([
     supabase.from('question_options').select('*').in('question_id', ids),
     supabase.from('question_images').select('*').in('question_id', ids),
+    setIds.length > 0
+      ? supabase.from('question_sets').select('id, name').in('id', setIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
   ]);
+  const setNames = new Map((sets ?? []).map((s: any) => [s.id, s.name]));
 
   return questions.map((q: any) => ({
     id: crypto.randomUUID(), // fresh id — this becomes a new, independent copy inside the quiz
@@ -56,6 +68,8 @@ export async function fetchImportableQuestions(): Promise<AdminQuizQuestion[]> {
     imageUrls: (imgs ?? [])
       .filter((i: any) => i.question_id === q.id)
       .map((i: any) => i.image_url),
+    questionSetId: q.question_set_id ?? null,
+    questionSetName: q.question_set_id ? (setNames.get(q.question_set_id) ?? 'Tanpa nama') : null,
   }));
 }
 
