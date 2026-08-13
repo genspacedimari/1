@@ -12,6 +12,18 @@ export interface AdminQuizQuestion {
   imageUrls: string[];
 }
 
+/**
+ * A question as it appears in the "Import dari Bank Soal" picker.
+ * Adds which Question Set (folder) it came from — e.g. an Excel-imported
+ * batch — so the picker can group questions by folder instead of forcing
+ * a one-by-one pick. `questionSetId`/`questionSetName` are null for
+ * standalone questions that were never placed in a set.
+ */
+export interface BankQuestion extends AdminQuizQuestion {
+  questionSetId: string | null;
+  questionSetName: string | null;
+}
+
 export interface AdminQuiz {
   id: string;
   title: string;
