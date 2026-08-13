@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Dumbbell, Award, KeyRound, ArrowRight, Users } from 'lucide-react';
+import { Award, KeyRound, ArrowRight, Users } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useQuizStore } from '@/features/quiz/store';
 
@@ -9,14 +9,6 @@ export default function QuizPage() {
   const loadOfficialQuizzes = useQuizStore((s) => s.loadOfficialQuizzes);
 
   const cards = [
-    {
-      title: 'Practice Mode',
-      subtitle: 'Learn PLC without affecting rankings.',
-      button: 'Start Practice',
-      icon: Dumbbell,
-      color: '#F26B3A',
-      onClick: () => navigate('/quiz/practice'),
-    },
     {
       title: 'GENSPACE Official Quiz',
       subtitle: 'Official quizzes provided by GENSPACE.',
