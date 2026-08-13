@@ -17,6 +17,48 @@ function normalizeQuiz(row: any): AdminQuiz {
   };
 }
 
+/**
+ * Fetches multiple-choice questions from ALL teachers' question banks,
+ * for the "Import dari Bank Soal" feature on official/practice quiz
+ * editing. Requires the `questions_select_admin` etc. RLS policies
+ * (20260813060000 migration) — without them this silently returns [].
+ *
+ * Only `multiple_choice` type is returned since AdminQuizQuestion only
+ * supports that shape; ladder/image-only questions are skipped.
+ */
+export async function fetchImportableQuestions(): Promise<AdminQuizQuestion[]> {
+  const { data: questions, error } = await supabase
+    .from('questions')
+    .select('*')
+    .eq('type', 'multiple_choice')
+    .eq('archived', false)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  if (!questions || questions.length === 0) return [];
+
+  const ids = questions.map((q: any) => q.id);
+  const [{ data: opts }, { data: imgs }] = await Promise.all([
+    supabase.from('question_options').select('*').in('question_id', ids),
+    supabase.from('question_images').select('*').in('question_id', ids),
+  ]);
+
+  return questions.map((q: any) => ({
+    id: crypto.randomUUID(), // fresh id — this becomes a new, independent copy inside the quiz
+    type: 'multiple_choice' as const,
+    question: q.question,
+    difficulty: q.difficulty,
+    points: q.points ?? 10,
+    explanation: q.explanation ?? '',
+    options: (opts ?? [])
+      .filter((o: any) => o.question_id === q.id)
+      .sort((a: any, b: any) => a.sort_order - b.sort_order)
+      .map((o: any) => ({ label: o.label, isCorrect: o.is_correct })),
+    imageUrls: (imgs ?? [])
+      .filter((i: any) => i.question_id === q.id)
+      .map((i: any) => i.image_url),
+  }));
+}
+
 export async function listOfficialQuizzes(): Promise<AdminQuiz[]> {
   const { data, error } = await supabase.from('official_quizzes').select('*').order('created_at', { ascending: false });
   if (error) throw error;
