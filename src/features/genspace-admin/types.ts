@@ -60,3 +60,23 @@ export interface ProfileSearchResult {
   username: string;
   email: string;
 }
+
+/**
+ * One row in a competition's leaderboard/results, shown in the admin
+ * "Kelola" panel. Ranked by score desc, then time used asc (faster wins
+ * ties) — computed client-side in fetchCompetitionParticipants.
+ */
+export interface CompetitionParticipant {
+  id: string;
+  userId: string;
+  fullName: string;
+  username: string;
+  email: string;
+  score: number;
+  correctCount: number;
+  wrongCount: number;
+  timeUsedSeconds: number;
+  submittedAt: string;
+  rank: number;
+  badgePlacement: BadgePlacement | null;
+}
