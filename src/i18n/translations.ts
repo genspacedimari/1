@@ -24,6 +24,7 @@ export const dictionary = {
   nav_profile: { id: 'Profil', en: 'Profile' },
   nav_guest: { id: 'Tamu', en: 'Guest' },
   nav_teacher: { id: 'Guru', en: 'Teacher' },
+  nav_admin: { id: 'Konten', en: 'Content' },
 
   // --- Section tabs --------------------------------------------------------
   section_general: { id: 'Umum', en: 'General' },
