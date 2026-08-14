@@ -1,16 +1,18 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Trophy, Users, Clock, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Clock, BarChart3, Download } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useTeacherStore } from '../store';
+import { exportLeaderboardExcel } from '@/utils/exportLeaderboard';
 
 interface ExamAttemptRow {
   id: string;
   studentId: string;
   studentName: string;
   studentEmail: string;
+  schoolName: string;
   score: number;
   correctCount: number;
   wrongCount: number;
@@ -107,6 +109,18 @@ export function ExamResultsPage() {
             Exam Results · {completedAttempts.length} students completed
           </p>
         </div>
+        {completedAttempts.length > 0 && (
+          <Button
+            variant="outline"
+            onClick={() => exportLeaderboardExcel(
+              completedAttempts.map((a) => ({ name: a.studentName, community: a.schoolName, correctCount: a.correctCount, wrongCount: a.wrongCount, timeUsedSeconds: a.timeUsedSeconds, score: a.score })),
+              `leaderboard-${exam.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.xlsx`,
+              exam.name,
+            )}
+          >
+            <Download size={16} /> Export Excel
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -254,16 +268,23 @@ async function fetchExamAttemptRows(examId: string): Promise<ExamAttemptRow[]> {
   }>;
 
   const studentIds = Array.from(new Set(rows.map((r) => r.student_id)));
-  const profileMap = new Map<string, { name: string; email: string }>();
+  const profileMap = new Map<string, { name: string; email: string; schoolId: string | null }>();
   if (studentIds.length > 0) {
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, full_name, email')
+      .select('id, full_name, email, school_id')
       .in('id', studentIds);
     (profiles ?? []).forEach((p) => {
-      const row = p as { id: string; full_name: string; email: string };
-      profileMap.set(row.id, { name: row.full_name, email: row.email });
+      const row = p as { id: string; full_name: string; email: string; school_id: string | null };
+      profileMap.set(row.id, { name: row.full_name, email: row.email, schoolId: row.school_id });
     });
+  }
+
+  const schoolIds = Array.from(new Set(Array.from(profileMap.values()).map((p) => p.schoolId).filter(Boolean))) as string[];
+  const schoolNameMap = new Map<string, string>();
+  if (schoolIds.length > 0) {
+    const { data: schools } = await supabase.from('schools').select('id, name').in('id', schoolIds);
+    (schools ?? []).forEach((s) => schoolNameMap.set((s as { id: string; name: string }).id, (s as { id: string; name: string }).name));
   }
 
   return rows.map((r) => ({
@@ -271,6 +292,7 @@ async function fetchExamAttemptRows(examId: string): Promise<ExamAttemptRow[]> {
     studentId: r.student_id,
     studentName: profileMap.get(r.student_id)?.name ?? 'Unknown Student',
     studentEmail: profileMap.get(r.student_id)?.email ?? '',
+    schoolName: (() => { const sid = profileMap.get(r.student_id)?.schoolId; return sid ? schoolNameMap.get(sid) ?? '-' : '-'; })(),
     score: Number(r.score),
     correctCount: r.correct_count,
     wrongCount: r.wrong_count,
