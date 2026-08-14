@@ -305,11 +305,18 @@ export async function fetchCompetitionParticipants(competitionId: string): Promi
 
   const userIds = rows.map((r: any) => r.user_id);
   const [{ data: profiles }, { data: awards }] = await Promise.all([
-    supabase.from('profiles').select('id, full_name, username, email').in('id', userIds),
+    supabase.from('profiles').select('id, full_name, username, email, school_id').in('id', userIds),
     supabase.from('genspace_badge_awards').select('user_id, placement').eq('competition_id', competitionId),
   ]);
   const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
   const placementMap = new Map((awards ?? []).map((a: any) => [a.user_id, a.placement]));
+
+  const schoolIds = Array.from(new Set((profiles ?? []).map((p: any) => p.school_id).filter(Boolean)));
+  let schoolNameMap = new Map<string, string>();
+  if (schoolIds.length > 0) {
+    const { data: schools } = await supabase.from('schools').select('id, name').in('id', schoolIds);
+    schoolNameMap = new Map((schools ?? []).map((s: any) => [s.id, s.name]));
+  }
 
   return rows.map((r: any, i: number) => {
     const p = profileMap.get(r.user_id);
@@ -325,6 +332,7 @@ export async function fetchCompetitionParticipants(competitionId: string): Promi
       timeUsedSeconds: r.time_used_seconds,
       submittedAt: r.submitted_at,
       rank: i + 1,
+      schoolName: p?.school_id ? schoolNameMap.get(p.school_id) ?? '-' : '-',
       badgePlacement: placementMap.get(r.user_id) ?? null,
     };
   });
