@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Award, Search, Upload, X, CircleCheck as CheckCircle2, Folder, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Award, Search, Upload, X, CircleCheck as CheckCircle2, Folder, ChevronDown, ChevronRight, Trophy, Medal, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import * as admin from '@/features/genspace-admin/services';
-import type { Competition, ProfileSearchResult, AdminQuizQuestion, BankQuestion } from '@/features/genspace-admin/types';
+import type { Competition, ProfileSearchResult, AdminQuizQuestion, BankQuestion, CompetitionParticipant } from '@/features/genspace-admin/types';
 
 export default function CompetitionPage() {
   const navigate = useNavigate();
@@ -26,6 +26,11 @@ export default function CompetitionPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedSetIds, setExpandedSetIds] = useState<Set<string>>(new Set());
 
+  const [participants, setParticipants] = useState<CompetitionParticipant[]>([]);
+  const [participantsLoading, setParticipantsLoading] = useState(false);
+  const [participantsError, setParticipantsError] = useState<string | null>(null);
+  const [autoAssigning, setAutoAssigning] = useState(false);
+
   const load = async () => { setLoading(true); try { setItems(await admin.listCompetitions()); } catch (e) { setError(e instanceof Error ? e.message : 'Gagal memuat kompetisi.'); } finally { setLoading(false); } };
   useEffect(() => { load(); }, []);
   useEffect(() => { const t = setTimeout(() => { admin.searchProfiles(search).then(setUsers).catch(() => setUsers([])); }, 250); return () => clearTimeout(t); }, [search]);
@@ -37,6 +42,26 @@ export default function CompetitionPage() {
   };
 
   const edit = (c: Competition) => { setSelected(c); setForm({ name: c.name, description: c.description ?? '', accessCode: c.accessCode, status: c.status, startAt: c.startAt ? c.startAt.slice(0, 16) : '', endAt: c.endAt ? c.endAt.slice(0, 16) : '', maxParticipants: c.maxParticipants?.toString() ?? '', badgePrefix: c.badgePrefix, durationMinutes: c.durationMinutes, quizData: c.quizData?.length ? c.quizData : [blankQuestion()] }); };
+
+  const loadParticipants = async (competitionId: string) => {
+    setParticipantsLoading(true); setParticipantsError(null);
+    try { setParticipants(await admin.fetchCompetitionParticipants(competitionId)); } catch (e) { setParticipantsError(e instanceof Error ? e.message : 'Gagal memuat peserta.'); } finally { setParticipantsLoading(false); }
+  };
+  // Load the leaderboard whenever a competition is opened via "Kelola", so the panel
+  // shows who actually joined instead of just a bare user search.
+  useEffect(() => { if (selected) loadParticipants(selected.id); else setParticipants([]); }, [selected]);
+
+  const handleAutoAssign = async () => {
+    if (!selected) return;
+    if (participants.length === 0) { setError('Belum ada peserta yang submit — belum bisa kasih badge otomatis.'); return; }
+    if (!confirm(`Kasih badge 1st/2nd/3rd otomatis ke 3 peserta teratas berdasarkan skor & waktu tercepat?`)) return;
+    setAutoAssigning(true); setError(null);
+    try {
+      const top3 = await admin.autoAssignCompetitionBadges(selected.id, selected.badgePrefix);
+      await loadParticipants(selected.id);
+      alert(`Badge diberikan ke: ${top3.map((p, i) => `#${i + 1} ${p.fullName}`).join(', ')}`);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Gagal memberi badge otomatis.'); } finally { setAutoAssigning(false); }
+  };
 
   const award = async (user: ProfileSearchResult, placement: '1st' | '2nd' | '3rd') => {
     if (!selected) return;
@@ -133,7 +158,44 @@ export default function CompetitionPage() {
 
     <Card><CardContent className="p-0">{loading ? <div className="p-8 text-center text-sm text-muted-foreground">Memuat...</div> : items.map(c => <div key={c.id} className={`flex items-center gap-3 border-b border-border p-4 last:border-b-0 dark:border-border-dark ${selected?.id === c.id ? 'bg-primary/5' : ''}`}><div className="min-w-0 flex-1"><p className="font-medium">{c.name}</p><p className="mt-1 text-xs text-muted-foreground">Kode: <b>{c.accessCode}</b> · Badge: <b>{c.badgePrefix}</b> · {c.status}</p></div><button onClick={() => edit(c)} className="rounded-xl px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/10">Kelola</button><button onClick={async () => { if (confirm('Hapus kompetisi ini?')) { await admin.deleteCompetition(c.id); load(); } }} className="rounded-xl p-2 text-muted-foreground hover:text-red-500"><Trash2 size={16} /></button></div>)}</CardContent></Card>
 
-    {selected && <Card><CardContent className="space-y-4 p-5"><div><p className="text-sm font-semibold">Badge juara — {selected.name}</p><p className="mt-1 text-xs text-muted-foreground">Cari user lalu berikan badge resmi 1st / 2nd / 3rd.</p></div><div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-2xl border border-border bg-surface px-4 py-3 text-sm outline-none focus:border-primary dark:border-border-dark dark:bg-surface-dark pl-9" placeholder="Cari nama, username, atau email..." /></div><div className="space-y-2">{users.map(u => <div key={u.id} className="flex items-center gap-3 rounded-2xl border border-border p-3 dark:border-border-dark"><div className="min-w-0 flex-1"><p className="text-sm font-medium">{u.fullName}</p><p className="text-xs text-muted-foreground">@{u.username} · {u.email}</p></div><div className="flex gap-2"><button onClick={() => award(u, '1st')} className="rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">🥇 1ST {selected.badgePrefix}</button><button onClick={() => award(u, '2nd')} className="rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">🥈 2ND</button><button onClick={() => award(u, '3rd')} className="rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">🥉 3RD</button></div></div>)}</div><div className="rounded-2xl bg-muted/30 p-3 text-xs text-muted-foreground dark:bg-white/5"><Award size={14} className="mb-1" />Badge otomatis menggunakan format <b>1ST {selected.badgePrefix}</b>, <b>2ND {selected.badgePrefix}</b>, <b>3RD {selected.badgePrefix}</b>.</div></CardContent></Card>}
+    {selected && <Card><CardContent className="space-y-4 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-1.5 text-sm font-semibold"><Trophy size={15} className="text-primary" /> Peserta & Leaderboard — {selected.name}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Diurutkan dari skor tertinggi, lalu waktu tercepat.</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => loadParticipants(selected.id)} className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/40" title="Muat ulang"><RefreshCw size={16} /></button>
+          <Button size="sm" onClick={handleAutoAssign} disabled={autoAssigning || participants.length === 0}>
+            <Medal size={15} /> {autoAssigning ? 'Memproses...' : 'Beri Badge Top 3 Otomatis'}
+          </Button>
+        </div>
+      </div>
+
+      {participantsLoading ? (
+        <p className="p-6 text-center text-sm text-muted-foreground">Memuat peserta...</p>
+      ) : participantsError ? (
+        <p className="p-6 text-center text-sm text-red-500">{participantsError}</p>
+      ) : participants.length === 0 ? (
+        <p className="rounded-2xl bg-muted/30 p-6 text-center text-sm text-muted-foreground dark:bg-white/5">Belum ada yang ikut kompetisi ini. Bagikan kode <b>{selected.accessCode}</b> ke peserta — mereka bisa join lewat menu Quiz &gt; GENSPACE Competition di aplikasi.</p>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-border dark:border-border-dark">
+          {participants.map((p) => (
+            <div key={p.id} className="flex items-center gap-3 border-b border-border p-3 last:border-b-0 dark:border-border-dark">
+              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${p.rank === 1 ? 'bg-amber-400/20 text-amber-600' : p.rank === 2 ? 'bg-slate-300/30 text-slate-500' : p.rank === 3 ? 'bg-orange-400/20 text-orange-600' : 'bg-muted/40 text-muted-foreground dark:bg-white/5'}`}>{p.rank}</span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{p.fullName}</p>
+                <p className="text-xs text-muted-foreground">@{p.username} · {p.correctCount} benar · {Math.floor(p.timeUsedSeconds / 60)}m {p.timeUsedSeconds % 60}s</p>
+              </div>
+              <span className="text-sm font-semibold text-primary">{p.score}%</span>
+              {p.badgePlacement && <span className="rounded-lg bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">{p.badgePlacement.toUpperCase()}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </CardContent></Card>}
+
+    {selected && <Card><CardContent className="space-y-4 p-5"><div><p className="text-sm font-semibold">Beri badge manual (opsional)</p><p className="mt-1 text-xs text-muted-foreground">Kalau perlu override di luar leaderboard di atas — cari user lalu berikan badge resmi 1st / 2nd / 3rd.</p></div><div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-2xl border border-border bg-surface px-4 py-3 text-sm outline-none focus:border-primary dark:border-border-dark dark:bg-surface-dark pl-9" placeholder="Cari nama, username, atau email..." /></div><div className="space-y-2">{users.map(u => <div key={u.id} className="flex items-center gap-3 rounded-2xl border border-border p-3 dark:border-border-dark"><div className="min-w-0 flex-1"><p className="text-sm font-medium">{u.fullName}</p><p className="text-xs text-muted-foreground">@{u.username} · {u.email}</p></div><div className="flex gap-2"><button onClick={() => award(u, '1st')} className="rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">🥇 1ST {selected.badgePrefix}</button><button onClick={() => award(u, '2nd')} className="rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">🥈 2ND</button><button onClick={() => award(u, '3rd')} className="rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">🥉 3RD</button></div></div>)}</div><div className="rounded-2xl bg-muted/30 p-3 text-xs text-muted-foreground dark:bg-white/5"><Award size={14} className="mb-1" />Badge otomatis menggunakan format <b>1ST {selected.badgePrefix}</b>, <b>2ND {selected.badgePrefix}</b>, <b>3RD {selected.badgePrefix}</b>.</div></CardContent></Card>}
 
     {showImport && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowImport(false)}>
