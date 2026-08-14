@@ -18,6 +18,9 @@ const QuizReviewPage = lazy(() => import('@/pages/Quiz/QuizReviewPage'));
 const QuizHistoryPage = lazy(() => import('@/pages/Quiz/QuizHistoryPage'));
 const LeaderboardPage = lazy(() => import('@/pages/Quiz/LeaderboardPage'));
 const StudentClassDetailPage = lazy(() => import('@/pages/Quiz/StudentClassDetailPage'));
+const JoinCompetitionPage = lazy(() => import('@/pages/Competition/JoinCompetitionPage'));
+const CompetitionPlayerPage = lazy(() => import('@/pages/Competition/CompetitionPlayerPage'));
+const CompetitionResultPage = lazy(() => import('@/pages/Competition/CompetitionResultPage'));
 const MaterialsPage = lazy(() => import('@/pages/Materials'));
 const ProfilePage = lazy(() => import('@/pages/Profile'));
 const RankingPage = lazy(() => import('@/pages/Ranking'));
@@ -225,6 +228,23 @@ export const router = createBrowserRouter([
       { path: 'quiz/review', element: withSuspense(<QuizReviewPage />) },
       { path: 'quiz/history', element: withSuspense(<QuizHistoryPage />) },
       { path: 'quiz/leaderboard', element: withSuspense(<LeaderboardPage />) },
+      { path: 'competition/join', element: withSuspense(<JoinCompetitionPage />) },
+      {
+        path: 'competition/player',
+        element: (
+          <RequireAuth>
+            {withSuspense(<CompetitionPlayerPage />)}
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'competition/result',
+        element: (
+          <RequireAuth>
+            {withSuspense(<CompetitionResultPage />)}
+          </RequireAuth>
+        ),
+      },
       {
         path: 'class/:classId',
         element: (
