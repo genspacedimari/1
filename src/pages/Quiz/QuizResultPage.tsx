@@ -1,85 +1,64 @@
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Trophy, CircleCheck as CheckCircle2, Circle as XCircle, Award, TrendingUp, ArrowRight, RotateCcw, Eye } from 'lucide-react';
+import { PartyPopper, ArrowRight, RotateCcw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useAuthStore } from '@/stores/authStore';
+import { useQuizStore } from '@/features/quiz/store';
+import { getRandomPostSubmitMessage } from '@/utils/postSubmitMessages';
 
 export default function QuizResultPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const profile = useAuthStore((s) => s.profile);
+  const activeExam = useQuizStore((s) => s.activeExam);
 
-  const result = (location.state as { score: number; correct: number; wrong: number; xp: number } | null) ?? { score: 0, correct: 0, wrong: 0, xp: 0 };
+  // Read once per mount so the message doesn't change on re-render.
+  const [message] = useState(getRandomPostSubmitMessage);
 
-  const passed = result.score >= 70;
+  // location.state carries { score, correct, wrong, xp } from submitExam(), but
+  // per poin 5 the score is intentionally never shown here — students only see
+  // it once everyone assigned to the exam has finished (via the leaderboard link
+  // below, gated server-side by get_exam_leaderboard()).
+  const xpEarned = (location.state as { xp?: number } | null)?.xp ?? 0;
+
   const itemVar = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } };
   const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.1 } } };
 
   return (
     <div className="mx-auto max-w-md">
       <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-4">
-        {/* Score card */}
         <motion.div variants={itemVar}>
           <Card>
             <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
               <motion.div
                 initial={{ scale: 0 }} animate={{ scale: 1 }}
                 transition={{ type: 'spring', delay: 0.2 }}
-                className="flex h-20 w-20 items-center justify-center rounded-full"
-                style={{ backgroundColor: passed ? '#22C55E15' : '#F26B3A15' }}
+                className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10"
               >
-                <Trophy size={36} style={{ color: passed ? '#22C55E' : '#F26B3A' }} />
+                <PartyPopper size={36} className="text-primary" />
               </motion.div>
-
               <div>
-                <p className="font-display text-4xl font-bold" style={{ color: passed ? '#22C55E' : '#F26B3A' }}>
-                  {result.score}%
-                </p>
-                <p className="mt-1 text-sm font-medium" style={{ color: passed ? '#22C55E' : '#F26B3A' }}>
-                  {passed ? 'PASSED' : 'NOT PASSED'}
-                </p>
+                <p className="font-display text-xl font-bold">Selesai mengerjakan!</p>
+                <p className="mt-2 text-sm text-muted-foreground">{message}</p>
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Stats grid */}
-        <motion.div variants={itemVar} className="grid grid-cols-2 gap-3">
-          <StatCard icon={CheckCircle2} label="Correct" value={result.correct} color="#22C55E" />
-          <StatCard icon={XCircle} label="Wrong" value={result.wrong} color="#EF4444" />
-          <StatCard icon={Award} label="XP Earned" value={`+${result.xp}`} color="#F26B3A" />
-          <StatCard icon={TrendingUp} label="Status" value={passed ? 'Pass' : 'Fail'} color={passed ? '#22C55E' : '#EF4444'} />
-        </motion.div>
-
-        {/* XP progress */}
-        <motion.div variants={itemVar}>
-          <Card>
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Total XP</span>
-                <span className="font-display text-lg font-semibold text-primary">{profile?.xp ?? 0}</span>
-              </div>
-              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted/60 dark:bg-white/10">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-500"
-                  style={{ width: `${((profile?.xp ?? 0) % 1000) / 10}%` }}
-                />
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Level {profile?.level ?? 1} · {1000 - ((profile?.xp ?? 0) % 1000)} XP to next level
+              <p className="rounded-2xl bg-muted/30 px-4 py-3 text-xs text-muted-foreground dark:bg-white/5">
+                Nilai baru akan tampil di leaderboard setelah semua peserta selesai mengerjakan exam ini.
+                {xpEarned > 0 && <> Kamu tetap dapat <b>+{xpEarned} XP</b> untuk usahamu.</>}
               </p>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Actions */}
         <motion.div variants={itemVar} className="flex gap-3">
-          <Button variant="outline" className="flex-1" onClick={() => navigate('/quiz/review')}>
-            <Eye size={16} /> Review
+          <Button
+            className="flex-1"
+            disabled={!activeExam}
+            onClick={() => activeExam && navigate(`/quiz/exam/${activeExam.id}/leaderboard`)}
+          >
+            Leaderboard <ArrowRight size={16} />
           </Button>
-          <Button className="flex-1" onClick={() => navigate('/quiz/history')}>
-            History <ArrowRight size={16} />
+          <Button variant="outline" className="flex-1" onClick={() => navigate('/quiz/history')}>
+            History
           </Button>
         </motion.div>
 
@@ -90,19 +69,5 @@ export default function QuizResultPage() {
         </motion.div>
       </motion.div>
     </div>
-  );
-}
-
-function StatCard({ icon: Icon, label, value, color }: { icon: typeof Trophy; label: string; value: string | number; color: string }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-2 p-4 text-center">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl" style={{ backgroundColor: `${color}15`, color }}>
-          <Icon size={20} />
-        </div>
-        <p className="font-display text-xl font-semibold">{value}</p>
-        <p className="text-xs text-muted-foreground">{label}</p>
-      </CardContent>
-    </Card>
   );
 }
