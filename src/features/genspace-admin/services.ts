@@ -178,6 +178,32 @@ export async function listCompetitions(): Promise<Competition[]> {
   }));
 }
 
+export async function getCompetition(id: string): Promise<Competition | null> {
+  const { data, error } = await supabase
+    .from('genspace_competitions')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const r: any = data;
+  return {
+    id: r.id,
+    name: r.name,
+    description: r.description ?? null,
+    accessCode: r.access_code,
+    status: r.status,
+    startAt: r.start_at,
+    endAt: r.end_at,
+    maxParticipants: r.max_participants,
+    badgePrefix: r.badge_prefix,
+    durationMinutes: r.duration_minutes ?? 30,
+    questionCount: r.question_count ?? 0,
+    quizData: Array.isArray(r.quiz_data) ? r.quiz_data : [],
+    createdAt: r.created_at,
+  };
+}
+
 export async function saveCompetition(input: {
   id?: string;
   name: string;
