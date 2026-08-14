@@ -10,21 +10,15 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/services/supabaseClient';
 import { cn } from '@/utils/cn';
+import { fetchUserBadges, bestPlacement, type UserBadge } from '@/features/badges/services';
+import { AvatarFrame } from '@/features/badges/AvatarFrame';
+import { BadgeShowcaseGrid } from '@/features/badges/BadgeDisplay';
 
 const ROLE_LABEL: Record<string, string> = {
   student: 'Student',
   teacher: 'Teacher',
   admin: 'Admin',
 };
-
-function avatarInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
-}
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -210,6 +204,16 @@ export default function ProfilePage() {
   const xpForNext = profile.level * 1000;
   const percent = Math.min(100, Math.round((xp / xpForNext) * 100));
 
+  // Fetched separately (not just inside AcademicInfoCard below) so the header
+  // avatar can show the champion frame as soon as it's known.
+  const [headerBadges, setHeaderBadges] = useState<UserBadge[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchUserBadges(profile.id).then((b) => { if (!cancelled) setHeaderBadges(b); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [profile.id]);
+  const headerTier = bestPlacement(headerBadges);
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       {/* Header */}
@@ -217,17 +221,7 @@ export default function ProfilePage() {
         <CardContent className="flex flex-col items-center gap-4 p-6 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-4">
             <div className="relative">
-              {profile.avatarUrl ? (
-                <img
-                  src={profile.avatarUrl}
-                  alt={profile.fullName}
-                  className="h-16 w-16 rounded-2xl object-cover"
-                />
-              ) : (
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/15 font-display text-xl font-semibold text-primary">
-                  {avatarInitials(profile.fullName)}
-                </div>
-              )}
+              <AvatarFrame avatarUrl={profile.avatarUrl} fullName={profile.fullName} placement={headerTier} size={64} />
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={uploadingPhoto}
@@ -558,13 +552,6 @@ function DetailRow({
   );
 }
 
-interface BadgeAward {
-  id: string;
-  code: string;
-  name: string;
-  placement: string | null;
-}
-
 interface AcademicData {
   schoolName: string | null;
   className: string | null;
@@ -581,7 +568,7 @@ interface AcademicData {
 
 function AcademicInfoCard({ profile }: { profile: { id: string; schoolId?: string | null; schoolName?: string | null; xp: number; level: number } }) {
   const [data, setData] = useState<AcademicData | null>(null);
-  const [badges, setBadges] = useState<BadgeAward[]>([]);
+  const [badges, setBadges] = useState<UserBadge[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -589,17 +576,7 @@ function AcademicInfoCard({ profile }: { profile: { id: string; schoolId?: strin
     async function load() {
       try {
         const sid = profile.id;
-        const { data: badgeRows } = await supabase
-          .from('genspace_badge_awards')
-          .select('id, placement, genspace_badges!inner(code, name)')
-          .eq('user_id', sid)
-          .order('awarded_at', { ascending: false });
-        const userBadges: BadgeAward[] = (badgeRows ?? []).map((row: any) => ({
-          id: row.id,
-          code: row.genspace_badges?.code ?? '',
-          name: row.genspace_badges?.name ?? '',
-          placement: row.placement ?? null,
-        }));
+        const userBadges = await fetchUserBadges(sid);
 
         // Fetch student_progress
         const { data: progress } = await supabase
@@ -762,22 +739,9 @@ function AcademicInfoCard({ profile }: { profile: { id: string; schoolId?: strin
             <Award size={16} className="text-primary" />
             <h3 className="text-sm font-semibold">Official GENSPACE Badges</h3>
           </div>
-          {badges.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Belum ada badge resmi GENSPACE.</p>
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {badges.map((badge) => (
-                <div key={badge.id} className="flex items-center gap-3 rounded-2xl border border-border p-3 dark:border-border-dark">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    {badge.placement === '1st' ? '🥇' : badge.placement === '2nd' ? '🥈' : '🥉'}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{badge.name}</p>
-                    <p className="text-xs text-muted-foreground">{badge.code}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <BadgeShowcaseGrid badges={badges} />
+          {badges.length > 0 && (
+            <p className="mt-2 text-xs text-muted-foreground">Badge ini tampil publik — siapa pun bisa melihatnya lewat profilmu.</p>
           )}
         </div>
 
