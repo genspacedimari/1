@@ -23,6 +23,7 @@ const CompetitionPlayerPage = lazy(() => import('@/pages/Competition/Competition
 const CompetitionResultPage = lazy(() => import('@/pages/Competition/CompetitionResultPage'));
 const MaterialsPage = lazy(() => import('@/pages/Materials'));
 const ProfilePage = lazy(() => import('@/pages/Profile'));
+const PublicProfilePage = lazy(() => import('@/pages/PublicProfile'));
 const RankingPage = lazy(() => import('@/pages/Ranking'));
 const SettingsPage = lazy(() => import('@/pages/Settings'));
 const AdminDashboardPage = lazy(() => import('@/pages/AdminDashboard'));
@@ -268,6 +269,14 @@ export const router = createBrowserRouter([
         element: (
           <RequireAuth>
             {withSuspense(<ProfilePage />)}
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'u/:userId',
+        element: (
+          <RequireAuth>
+            {withSuspense(<PublicProfilePage />)}
           </RequireAuth>
         ),
       },
