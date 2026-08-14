@@ -78,5 +78,6 @@ export interface CompetitionParticipant {
   timeUsedSeconds: number;
   submittedAt: string;
   rank: number;
+  schoolName: string;
   badgePlacement: BadgePlacement | null;
 }
