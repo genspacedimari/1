@@ -14,6 +14,7 @@ const JoinExamPage = lazy(() => import('@/pages/Quiz/JoinExamPage'));
 const JoinClassPage = lazy(() => import('@/pages/Quiz/JoinClassPage'));
 const ExamPlayerPage = lazy(() => import('@/pages/Quiz/ExamPlayerPage'));
 const QuizResultPage = lazy(() => import('@/pages/Quiz/QuizResultPage'));
+const ExamLeaderboardPage = lazy(() => import('@/pages/Quiz/ExamLeaderboardPage'));
 const QuizReviewPage = lazy(() => import('@/pages/Quiz/QuizReviewPage'));
 const QuizHistoryPage = lazy(() => import('@/pages/Quiz/QuizHistoryPage'));
 const LeaderboardPage = lazy(() => import('@/pages/Quiz/LeaderboardPage'));
@@ -227,6 +228,7 @@ export const router = createBrowserRouter([
         ),
       },
       { path: 'quiz/result', element: withSuspense(<QuizResultPage />) },
+      { path: 'quiz/exam/:examId/leaderboard', element: withSuspense(<ExamLeaderboardPage />) },
       { path: 'quiz/review', element: withSuspense(<QuizReviewPage />) },
       { path: 'quiz/history', element: withSuspense(<QuizHistoryPage />) },
       { path: 'quiz/leaderboard', element: withSuspense(<LeaderboardPage />) },
