@@ -196,8 +196,13 @@ export async function saveCompetition(input: {
     description: input.description.trim() || null,
     access_code: input.accessCode.trim().toUpperCase(),
     status: input.status,
-    start_at: input.startAt || null,
-    end_at: input.endAt || null,
+    // input.startAt/endAt come from <input type="datetime-local">, e.g. "2026-08-14T08:47" —
+    // no timezone info. `new Date(...)` parses that as LOCAL browser time (WIB etc.), and
+    // .toISOString() converts it to the correct UTC instant before it hits Postgres. Without
+    // this, Postgres treats the bare string as already being UTC, silently shifting the
+    // schedule by the browser's UTC offset (e.g. 7 hours off for WIB).
+    start_at: input.startAt ? new Date(input.startAt).toISOString() : null,
+    end_at: input.endAt ? new Date(input.endAt).toISOString() : null,
     max_participants: input.maxParticipants,
     badge_prefix: input.badgePrefix.trim().toUpperCase(),
     duration_minutes: input.durationMinutes,
