@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Award, Search, Upload, X, CircleCheck as CheckCircle2, Folder, ChevronDown, ChevronRight, Trophy, Medal, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Award, Search, Upload, X, CircleCheck as CheckCircle2, Folder, ChevronDown, ChevronRight, Trophy, Medal, RefreshCw, Download } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import * as admin from '@/features/genspace-admin/services';
+import { exportLeaderboardExcel } from '@/utils/exportLeaderboard';
 import type { Competition, ProfileSearchResult, AdminQuizQuestion, BankQuestion, CompetitionParticipant } from '@/features/genspace-admin/types';
 
 const blankQuestion = (): AdminQuizQuestion => ({ id: crypto.randomUUID(), type: 'multiple_choice', question: '', difficulty: 'easy', points: 10, explanation: '', options: [0, 1, 2, 3].map(() => ({ label: '', isCorrect: false })), imageUrls: [] });
@@ -192,6 +193,18 @@ export default function CompetitionDetailPage() {
           </div>
           <div className="flex gap-2">
             <button onClick={() => loadParticipants(competition.id)} className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/40" title="Muat ulang"><RefreshCw size={16} /></button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={participants.length === 0}
+              onClick={() => exportLeaderboardExcel(
+                participants.map((p) => ({ name: p.fullName, community: p.schoolName, correctCount: p.correctCount, wrongCount: p.wrongCount, timeUsedSeconds: p.timeUsedSeconds, score: p.score })),
+                `leaderboard-${competition.accessCode.toLowerCase()}.xlsx`,
+                competition.name,
+              )}
+            >
+              <Download size={15} /> Export Excel
+            </Button>
             <Button size="sm" onClick={handleAutoAssign} disabled={autoAssigning || participants.length === 0}>
               <Medal size={15} /> {autoAssigning ? 'Memproses...' : 'Beri Badge Top 3 Otomatis'}
             </Button>
