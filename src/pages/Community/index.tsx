@@ -152,11 +152,11 @@ export default function CommunityViewPage() {
           {members && members.teachers.length > 0 ? (
             <div className="space-y-2">
               {members.teachers.map((t) => (
-                <div key={t.id} className="flex items-center gap-3 rounded-2xl bg-muted/20 p-3 dark:bg-white/5">
+                <button key={t.id} onClick={() => navigate(`/u/${t.id}`)} className="flex w-full items-center gap-3 rounded-2xl bg-muted/20 p-3 text-left transition-colors hover:bg-muted/40 dark:bg-white/5 dark:hover:bg-white/10">
                   <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-600"><Users size={16} /></div>
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{t.fullName}</p><p className="truncate text-xs text-muted-foreground">{t.email}</p></div>
                   {t.id === community.ownerTeacherId && <span className="text-xs font-medium text-primary">Owner</span>}
-                </div>
+                </button>
               ))}
             </div>
           ) : <p className="text-sm text-muted-foreground">No teachers.</p>}
@@ -211,10 +211,10 @@ export default function CommunityViewPage() {
           {members && members.students.length > 0 ? (
             <div className="space-y-2">
               {members.students.map((s) => (
-                <div key={s.id} className="flex items-center gap-3 rounded-2xl bg-muted/20 p-3 dark:bg-white/5">
+                <button key={s.id} onClick={() => navigate(`/u/${s.id}`)} className="flex w-full items-center gap-3 rounded-2xl bg-muted/20 p-3 text-left transition-colors hover:bg-muted/40 dark:bg-white/5 dark:hover:bg-white/10">
                   <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600"><GraduationCap size={16} /></div>
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{s.fullName}</p><p className="truncate text-xs text-muted-foreground">{s.email}</p></div>
-                </div>
+                </button>
               ))}
             </div>
           ) : <p className="text-sm text-muted-foreground">No students yet.</p>}
