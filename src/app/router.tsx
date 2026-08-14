@@ -27,7 +27,8 @@ const RankingPage = lazy(() => import('@/pages/Ranking'));
 const SettingsPage = lazy(() => import('@/pages/Settings'));
 const AdminDashboardPage = lazy(() => import('@/pages/AdminDashboard'));
 const AdminQuizContentPage = lazy(() => import('@/pages/AdminDashboard/QuizContentPage'));
-const AdminCompetitionPage = lazy(() => import('@/pages/AdminDashboard/CompetitionPage'));
+const AdminCompetitionListPage = lazy(() => import('@/pages/AdminDashboard/CompetitionListPage'));
+const AdminCompetitionDetailPage = lazy(() => import('@/pages/AdminDashboard/CompetitionDetailPage'));
 const LoginPage = lazy(() => import('@/pages/Login'));
 const RegisterPage = lazy(() => import('@/pages/Register'));
 const ForgotPasswordPage = lazy(() => import('@/pages/ForgotPassword'));
@@ -280,7 +281,9 @@ export const router = createBrowserRouter([
         ),
       },
       { path: 'admin/official', element: <RequireAuth roles={['admin']}>{withSuspense(<AdminQuizContentPage kind="official" />)}</RequireAuth> },
-      { path: 'admin/competition', element: <RequireAuth roles={['admin']}>{withSuspense(<AdminCompetitionPage />)}</RequireAuth> },
+      { path: 'admin/competition', element: <RequireAuth roles={['admin']}>{withSuspense(<AdminCompetitionListPage />)}</RequireAuth> },
+      { path: 'admin/competition/new', element: <RequireAuth roles={['admin']}>{withSuspense(<AdminCompetitionDetailPage />)}</RequireAuth> },
+      { path: 'admin/competition/:id', element: <RequireAuth roles={['admin']}>{withSuspense(<AdminCompetitionDetailPage />)}</RequireAuth> },
       { path: 'settings', element: withSuspense(<SettingsPage />) },
     ],
   },
