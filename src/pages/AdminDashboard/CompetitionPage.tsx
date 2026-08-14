@@ -41,7 +41,7 @@ export default function CompetitionPage() {
     try { await admin.saveCompetition({ id: selected?.id, ...form, startAt: form.startAt || null, endAt: form.endAt || null, maxParticipants: form.maxParticipants ? Number(form.maxParticipants) : null, durationMinutes: form.durationMinutes, quizData: form.quizData }); setSelected(null); setForm({ name: '', description: '', accessCode: 'GSC26', status: 'draft', startAt: '', endAt: '', maxParticipants: '', badgePrefix: 'GSC26', durationMinutes: 30, quizData: [blankQuestion()] }); await load(); } catch (e) { setError(e instanceof Error ? e.message : 'Gagal menyimpan.'); } finally { setSaving(false); }
   };
 
-  const edit = (c: Competition) => { setSelected(c); setForm({ name: c.name, description: c.description ?? '', accessCode: c.accessCode, status: c.status, startAt: c.startAt ? c.startAt.slice(0, 16) : '', endAt: c.endAt ? c.endAt.slice(0, 16) : '', maxParticipants: c.maxParticipants?.toString() ?? '', badgePrefix: c.badgePrefix, durationMinutes: c.durationMinutes, quizData: c.quizData?.length ? c.quizData : [blankQuestion()] }); };
+  const edit = (c: Competition) => { setSelected(c); setForm({ name: c.name, description: c.description ?? '', accessCode: c.accessCode, status: c.status, startAt: toLocalDatetimeInput(c.startAt), endAt: toLocalDatetimeInput(c.endAt), maxParticipants: c.maxParticipants?.toString() ?? '', badgePrefix: c.badgePrefix, durationMinutes: c.durationMinutes, quizData: c.quizData?.length ? c.quizData : [blankQuestion()] }); };
 
   const loadParticipants = async (competitionId: string) => {
     setParticipantsLoading(true); setParticipantsError(null);
@@ -314,3 +314,14 @@ export default function CompetitionPage() {
   </div>;
 }
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block text-xs font-medium text-muted-foreground">{label}<div className="mt-1.5">{children}</div></label>; }
+
+// Postgres returns start_at/end_at as UTC ISO strings (e.g. "2026-08-14T15:47:00+00:00").
+// <input type="datetime-local"> needs "YYYY-MM-DDTHH:mm" in the BROWSER'S local time —
+// `new Date(iso)` already converts to local time internally, we just need to read its
+// local getters (not toISOString, which would give UTC again) and zero-pad them.
+function toLocalDatetimeInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
