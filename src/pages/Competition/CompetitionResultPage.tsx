@@ -1,19 +1,15 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trophy, Clock, Medal } from 'lucide-react';
+import { Sparkles, Lock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useCompetitionStore } from '@/features/competition/store';
-
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}m ${s}s`;
-}
+import { getRandomPostSubmitMessage } from '@/utils/postSubmitMessages';
 
 export default function CompetitionResultPage() {
   const navigate = useNavigate();
   const { activeCompetition, lastResult, clear } = useCompetitionStore();
+  const [message] = useState(getRandomPostSubmitMessage);
 
   // Guard: only makes sense right after finishing a competition.
   useEffect(() => {
@@ -29,28 +25,22 @@ export default function CompetitionResultPage() {
       <Card>
         <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-            <Trophy size={36} className="text-primary" />
+            <Sparkles size={36} className="text-primary" />
           </div>
           <div>
-            <p className="font-display text-4xl font-bold text-primary">{lastResult.score}%</p>
-            <p className="mt-1 text-sm text-muted-foreground">{lastResult.correctCount} dari {lastResult.correctCount + lastResult.wrongCount} benar</p>
+            <p className="font-display text-xl font-bold">Jawaban terkirim!</p>
+            <p className="mt-2 text-sm text-muted-foreground">{message}</p>
           </div>
 
-          <div className="flex items-center gap-4 text-sm">
-            <div className="flex items-center gap-1.5">
-              <Clock size={16} className="text-muted-foreground" />
-              <span>{formatDuration(lastResult.timeUsedSeconds)}</span>
-            </div>
-            {lastResult.rank && (
-              <div className="flex items-center gap-1.5">
-                <Medal size={16} className="text-muted-foreground" />
-                <span>Peringkat {lastResult.rank} / {lastResult.totalParticipants}</span>
-              </div>
-            )}
-          </div>
-
-          <p className="rounded-2xl bg-muted/30 px-4 py-3 text-xs text-muted-foreground dark:bg-white/5">
-            Jawabanmu sudah tersimpan. Pemenang 1st/2nd/3rd untuk badge <b>{activeCompetition.badgePrefix}</b> akan diumumkan oleh GENSPACE Team setelah kompetisi selesai.
+          {/* Score/rank are intentionally NEVER shown to participants for a
+              GENSPACE Competition (poin 5) — only the GENSPACE team can see
+              them, from the admin "Kelola" panel. Keeps it a real competition. */}
+          <p className="flex items-start gap-2 rounded-2xl bg-muted/30 px-4 py-3 text-left text-xs text-muted-foreground dark:bg-white/5">
+            <Lock size={28} className="mt-0.5 shrink-0 text-muted-foreground" />
+            <span>
+              Jawabanmu sudah tersimpan. Nilai dan peringkat kompetisi ini <b>dirahasiakan</b> — cuma GENSPACE Team yang bisa melihatnya.
+              Pemenang 1st/2nd/3rd untuk badge <b>{activeCompetition.badgePrefix}</b> akan diumumkan resmi setelah kompetisi selesai.
+            </span>
           </p>
 
           <div className="flex gap-3">
