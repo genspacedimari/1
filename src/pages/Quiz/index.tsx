@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Award, KeyRound, ArrowRight, Users } from 'lucide-react';
+import { Award, KeyRound, ArrowRight, Users, Trophy } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useQuizStore } from '@/features/quiz/store';
 
@@ -19,6 +19,14 @@ export default function QuizPage() {
         loadOfficialQuizzes();
         navigate('/quiz/official');
       },
+    },
+    {
+      title: 'GENSPACE Competition',
+      subtitle: 'Join an official competition with an access code and win a badge.',
+      button: 'Join Competition',
+      icon: Trophy,
+      color: '#D97706',
+      onClick: () => navigate('/competition/join'),
     },
     {
       title: 'Teacher Exam',
