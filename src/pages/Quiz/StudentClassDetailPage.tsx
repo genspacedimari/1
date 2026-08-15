@@ -5,6 +5,8 @@ import { ArrowLeft, Users, User, Building2, FileText, Clock, CircleCheck as Chec
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { fetchClassDetails, fetchClassLeaderboard } from '@/features/quiz/services';
+import { AvatarFrame } from '@/features/badges/AvatarFrame';
+import { fetchBestPlacements, type BadgePlacement } from '@/features/badges/services';
 import type { StudentClassInfo, ClassExamInfo, LeaderboardEntry } from '@/features/quiz/types';
 
 interface ClassStudent {
@@ -12,6 +14,7 @@ interface ClassStudent {
   name: string;
   email: string;
   joinedAt: string;
+  avatarUrl: string | null;
 }
 
 interface ClassDetails {
@@ -25,6 +28,7 @@ export default function StudentClassDetailPage() {
   const navigate = useNavigate();
   const [details, setDetails] = useState<ClassDetails | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [placements, setPlacements] = useState<Map<string, BadgePlacement | null>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'overview' | 'exams' | 'students' | 'leaderboard'>('overview');
@@ -43,6 +47,7 @@ export default function StudentClassDetailPage() {
         } else {
           setDetails(d);
           setLeaderboard(lb);
+          fetchBestPlacements(d.students.map((s) => s.id)).then(setPlacements).catch(() => {});
         }
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load class'))
@@ -214,9 +219,7 @@ export default function StudentClassDetailPage() {
               <div className="max-h-96 overflow-y-auto divide-y divide-border dark:divide-border-dark">
                 {students.map((s) => (
                   <div key={s.id} className="flex items-center gap-3 px-5 py-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                      {s.name.charAt(0).toUpperCase()}
-                    </div>
+                    <AvatarFrame avatarUrl={s.avatarUrl} fullName={s.name} placement={placements.get(s.id) ?? null} size={36} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{s.name}</p>
                       <p className="truncate text-xs text-muted-foreground">{s.email}</p>
