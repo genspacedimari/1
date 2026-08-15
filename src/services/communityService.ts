@@ -257,22 +257,22 @@ export async function deleteCommunity(communityId: string): Promise<void> {
 }
 
 export async function fetchCommunityMembers(communityId: string): Promise<{
-  teachers: { id: string; fullName: string; email: string }[];
-  students: { id: string; fullName: string; email: string }[];
+  teachers: { id: string; fullName: string; email: string; avatarUrl: string | null }[];
+  students: { id: string; fullName: string; email: string; avatarUrl: string | null }[];
 }> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, email, role')
+    .select('id, full_name, email, role, avatar_url')
     .eq('school_id', communityId)
     .order('full_name');
   if (error) {
     console.error('fetchCommunityMembers error:', error.message, error);
     throw error;
   }
-  const rows = (data ?? []) as Array<{ id: string; full_name: string; email: string; role: string }>;
+  const rows = (data ?? []) as Array<{ id: string; full_name: string; email: string; role: string; avatar_url: string | null }>;
   return {
-    teachers: rows.filter((r) => r.role === 'teacher').map((r) => ({ id: r.id, fullName: r.full_name, email: r.email })),
-    students: rows.filter((r) => r.role === 'student').map((r) => ({ id: r.id, fullName: r.full_name, email: r.email })),
+    teachers: rows.filter((r) => r.role === 'teacher').map((r) => ({ id: r.id, fullName: r.full_name, email: r.email, avatarUrl: r.avatar_url ?? null })),
+    students: rows.filter((r) => r.role === 'student').map((r) => ({ id: r.id, fullName: r.full_name, email: r.email, avatarUrl: r.avatar_url ?? null })),
   };
 }
 
