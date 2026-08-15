@@ -5,6 +5,8 @@ import { ArrowLeft, Building2, Users, FileText, GraduationCap, Copy, Check, Plus
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchCommunityById, fetchCommunityMembers, fetchCommunityClasses } from '@/services/communityService';
+import { AvatarFrame } from '@/features/badges/AvatarFrame';
+import { fetchBestPlacements, type BadgePlacement } from '@/features/badges/services';
 import type { Community } from '@/services/communityService';
 
 /**
@@ -17,7 +19,8 @@ export default function CommunityViewPage() {
   const profile = useAuthStore((s) => s.profile);
 
   const [community, setCommunity] = useState<Community | null>(null);
-  const [members, setMembers] = useState<{ teachers: { id: string; fullName: string; email: string }[]; students: { id: string; fullName: string; email: string }[] } | null>(null);
+  const [members, setMembers] = useState<{ teachers: { id: string; fullName: string; email: string; avatarUrl: string | null }[]; students: { id: string; fullName: string; email: string; avatarUrl: string | null }[] } | null>(null);
+  const [placements, setPlacements] = useState<Map<string, BadgePlacement | null>>(new Map());
   const [classes, setClasses] = useState<{ id: string; name: string; joinCode: string; teacherName: string; studentCount: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +47,11 @@ export default function CommunityViewPage() {
 
       try {
         const m = await fetchCommunityMembers(profile.schoolId);
-        if (!cancelled) setMembers(m);
+        if (!cancelled) {
+          setMembers(m);
+          const allIds = [...m.teachers.map((t) => t.id), ...m.students.map((s) => s.id)];
+          fetchBestPlacements(allIds).then((p) => { if (!cancelled) setPlacements(p); }).catch(() => {});
+        }
       } catch (err) {
         console.error('Failed to load community members:', err);
       }
@@ -153,7 +160,7 @@ export default function CommunityViewPage() {
             <div className="space-y-2">
               {members.teachers.map((t) => (
                 <button key={t.id} onClick={() => navigate(`/u/${t.id}`)} className="flex w-full items-center gap-3 rounded-2xl bg-muted/20 p-3 text-left transition-colors hover:bg-muted/40 dark:bg-white/5 dark:hover:bg-white/10">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-600"><Users size={16} /></div>
+                  <AvatarFrame avatarUrl={t.avatarUrl} fullName={t.fullName} placement={placements.get(t.id) ?? null} size={36} />
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{t.fullName}</p><p className="truncate text-xs text-muted-foreground">{t.email}</p></div>
                   {t.id === community.ownerTeacherId && <span className="text-xs font-medium text-primary">Owner</span>}
                 </button>
@@ -212,7 +219,7 @@ export default function CommunityViewPage() {
             <div className="space-y-2">
               {members.students.map((s) => (
                 <button key={s.id} onClick={() => navigate(`/u/${s.id}`)} className="flex w-full items-center gap-3 rounded-2xl bg-muted/20 p-3 text-left transition-colors hover:bg-muted/40 dark:bg-white/5 dark:hover:bg-white/10">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600"><GraduationCap size={16} /></div>
+                  <AvatarFrame avatarUrl={s.avatarUrl} fullName={s.fullName} placement={placements.get(s.id) ?? null} size={36} />
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{s.fullName}</p><p className="truncate text-xs text-muted-foreground">{s.email}</p></div>
                 </button>
               ))}
