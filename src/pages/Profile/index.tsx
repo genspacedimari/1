@@ -13,6 +13,7 @@ import { cn } from '@/utils/cn';
 import { fetchUserBadges, bestPlacement, type UserBadge } from '@/features/badges/services';
 import { AvatarFrame } from '@/features/badges/AvatarFrame';
 import { BadgeShowcaseGrid } from '@/features/badges/BadgeDisplay';
+import { AvatarCropModal } from '@/components/ui/avatar-crop-modal';
 
 const ROLE_LABEL: Record<string, string> = {
   student: 'Student',
@@ -40,6 +41,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   const [showPwdForm, setShowPwdForm] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -145,21 +147,29 @@ export default function ProfilePage() {
     }
   };
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setCropFile(file);
+    // Reset the input so selecting the same file again still fires onChange.
+    e.target.value = '';
+  };
+
+  const handleCropConfirm = async (blob: Blob) => {
+    if (!profile) return;
     setUploadingPhoto(true);
     setSaveError(null);
     try {
-      const ext = file.name.split('.').pop() ?? 'png';
-      const path = `${profile.id}/avatar.${ext}`;
+      const path = `${profile.id}/avatar.jpg`;
       const { error: upErr } = await supabase.storage
         .from('avatars')
-        .upload(path, file, { upsert: true });
+        .upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
-      await updateProfile({ avatarUrl: pub.publicUrl });
+      // Cache-bust so the new photo shows immediately even though the path is unchanged.
+      await updateProfile({ avatarUrl: `${pub.publicUrl}?t=${Date.now()}` });
       await refreshProfile();
+      setCropFile(null);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Photo upload failed');
     } finally {
@@ -236,7 +246,7 @@ export default function ProfilePage() {
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={handlePhotoUpload}
+                onChange={handlePhotoSelect}
               />
             </div>
             <div>
@@ -526,6 +536,15 @@ export default function ProfilePage() {
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}
       />
+
+      {cropFile && (
+        <AvatarCropModal
+          file={cropFile}
+          confirming={uploadingPhoto}
+          onCancel={() => setCropFile(null)}
+          onConfirm={handleCropConfirm}
+        />
+      )}
     </div>
   );
 }
