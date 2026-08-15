@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, MoveVertical as MoreVertical, Copy, Trash2, Eye, FileText, Archive, Send, ClipboardList } from 'lucide-react';
+import { ChevronDown, Plus, Copy, Trash2, Eye, FileText, Archive, Send, ClipboardList } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { ActionMenu } from '@/components/ui/action-menu';
 import { useTeacherStore } from '../store';
 import { EXAM_STATUS_LABELS, type ExamStatus } from '../types';
 import { formatScheduleSummary } from '../examSchedule';
@@ -19,7 +20,6 @@ const statusVariant: Record<ExamStatus, 'default' | 'success' | 'muted'> = {
 export function ExamsPage() {
   const navigate = useNavigate();
   const { exams, loadExams, deleteExam, duplicateExam, updateExam } = useTeacherStore();
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   useEffect(() => { loadExams(); }, [loadExams]);
@@ -27,12 +27,10 @@ export function ExamsPage() {
   const handleTogglePublish = (examId: string, status: ExamStatus) => {
     const newStatus = status === 'published' ? 'draft' : 'published';
     updateExam(examId, { status: newStatus });
-    setMenuOpen(null);
   };
 
   const handleArchive = (examId: string) => {
     updateExam(examId, { status: 'archived' });
-    setMenuOpen(null);
   };
 
   return (
@@ -83,22 +81,28 @@ export function ExamsPage() {
                     {exam.description && <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{exam.description}</p>}
                   </div>
                   <div className="relative shrink-0">
-                    <button onClick={() => setMenuOpen(menuOpen === exam.id ? null : exam.id)} className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/40 dark:hover:bg-white/5">
-                      <MoreVertical size={18} />
-                    </button>
-                    {menuOpen === exam.id && (
-                      <>
-                        <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(null)} />
-                        <div className="absolute right-0 top-11 z-30 w-44 rounded-2xl border border-border bg-surface py-1 shadow-lg dark:border-border-dark dark:bg-surface-dark">
-                          <MenuItem icon={ClipboardList} label="Review Results" onClick={() => { navigate(`/teacher/exams/${exam.id}/results`); setMenuOpen(null); }} />
-                          <MenuItem icon={Eye} label="Preview" onClick={() => { navigate(`/teacher/exams/${exam.id}/preview`); setMenuOpen(null); }} />
-                          <MenuItem icon={Send} label={exam.status === 'published' ? 'Unpublish' : 'Publish'} onClick={() => handleTogglePublish(exam.id, exam.status)} />
-                          <MenuItem icon={Copy} label="Duplicate" onClick={() => { duplicateExam(exam.id); setMenuOpen(null); }} />
-                          {exam.status !== 'archived' && <MenuItem icon={Archive} label="Archive" onClick={() => handleArchive(exam.id)} />}
-                          <MenuItem icon={Trash2} label="Delete" danger onClick={() => { setConfirmDelete(exam.id); setMenuOpen(null); }} />
-                        </div>
-                      </>
-                    )}
+                    <ActionMenu
+                      trigger={({ onClick, open }) => (
+                        <button
+                          onClick={onClick}
+                          className={cn(
+                            'flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors',
+                            open ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted/40 dark:border-border-dark dark:hover:bg-white/5'
+                          )}
+                          style={{ minHeight: 36 }}
+                        >
+                          Kelola <ChevronDown size={14} className={cn('transition-transform', open && 'rotate-180')} />
+                        </button>
+                      )}
+                      items={[
+                        { icon: ClipboardList, label: 'Review Results', onClick: () => navigate(`/teacher/exams/${exam.id}/results`) },
+                        { icon: Eye, label: 'Pratinjau', onClick: () => navigate(`/teacher/exams/${exam.id}/preview`) },
+                        { icon: Send, label: exam.status === 'published' ? 'Unpublish' : 'Publish', onClick: () => handleTogglePublish(exam.id, exam.status) },
+                        { icon: Copy, label: 'Duplicate', onClick: () => duplicateExam(exam.id) },
+                        { icon: Archive, label: 'Archive', onClick: () => handleArchive(exam.id), hidden: exam.status === 'archived' },
+                        { icon: Trash2, label: 'Hapus', danger: true, onClick: () => setConfirmDelete(exam.id) },
+                      ]}
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -117,13 +121,5 @@ export function ExamsPage() {
         onCancel={() => setConfirmDelete(null)}
       />
     </div>
-  );
-}
-
-function MenuItem({ icon: Icon, label, onClick, danger }: { icon: typeof Eye; label: string; onClick: () => void; danger?: boolean }) {
-  return (
-    <button onClick={onClick} className={cn('flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-muted/30', danger && 'text-red-500')}>
-      <Icon size={16} /> {label}
-    </button>
   );
 }
