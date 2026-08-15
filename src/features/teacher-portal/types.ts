@@ -106,6 +106,7 @@ export interface ClassStudent {
   fullName: string;
   email: string;
   username: string;
+  avatarUrl: string | null;
 }
 
 export interface ExamResult {
@@ -137,6 +138,7 @@ export interface StudentSummary {
 }
 
 export interface StudentDetail extends StudentSummary {
+  avatarUrl: string | null;
   schoolName: string | null;
   teacherName: string | null;
   xp: number;
