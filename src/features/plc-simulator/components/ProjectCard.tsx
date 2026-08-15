@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MoveVertical as MoreVertical, FolderOpen, Pencil, Copy, Download, Trash2, Cpu } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import type { PlcProject } from '../projectTypes'
 import { PLC_TYPE_LABELS, SCAN_RATE_LABELS } from '../projectTypes'
+import { ActionMenu } from '@/components/ui/action-menu'
 
 interface ProjectCardProps {
   project: PlcProject
@@ -36,26 +36,15 @@ function timeAgo(iso: string): string {
 
 export function ProjectCard({ project, onRename, onDuplicate, onExport, onDelete }: ProjectCardProps) {
   const navigate = useNavigate()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!menuOpen) return
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [menuOpen])
 
   const openProject = () => navigate(`/simulator/editor/${project.id}`)
 
   const menuItems = [
-    { label: 'Open', icon: FolderOpen, action: openProject },
-    { label: 'Rename', icon: Pencil, action: () => { onRename(project); setMenuOpen(false) } },
-    { label: 'Duplicate', icon: Copy, action: () => { onDuplicate(project); setMenuOpen(false) } },
-    { label: 'Export', icon: Download, action: () => { onExport(project); setMenuOpen(false) } },
-    { label: 'Delete', icon: Trash2, action: () => { onDelete(project); setMenuOpen(false) }, danger: true },
+    { label: 'Open', icon: FolderOpen, onClick: openProject },
+    { label: 'Rename', icon: Pencil, onClick: () => onRename(project) },
+    { label: 'Duplicate', icon: Copy, onClick: () => onDuplicate(project) },
+    { label: 'Export', icon: Download, onClick: () => onExport(project) },
+    { label: 'Delete', icon: Trash2, danger: true, onClick: () => onDelete(project) },
   ]
 
   return (
@@ -99,40 +88,20 @@ export function ProjectCard({ project, onRename, onDuplicate, onExport, onDelete
       </div>
 
       {/* Menu trigger */}
-      <div ref={menuRef} className="absolute right-2 top-2">
-        <button
-          onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o) }}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-opacity hover:bg-muted dark:hover:bg-white/10 group-hover:opacity-100"
-          aria-label="Project menu"
-        >
-          <MoreVertical size={16} />
-        </button>
-        <AnimatePresence>
-          {menuOpen && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.92, y: -4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: -4 }}
-              transition={{ duration: 0.12 }}
-              className="absolute right-0 top-9 z-30 w-40 overflow-hidden rounded-xl border border-border dark:border-border-dark bg-white dark:bg-surface-dark shadow-glass"
+      <div className="absolute right-2 top-2">
+        <ActionMenu
+          menuWidth={160}
+          trigger={({ onClick, open }) => (
+            <button
+              onClick={(e) => { e.stopPropagation(); onClick() }}
+              className={`flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-opacity hover:bg-muted dark:hover:bg-white/10 ${open ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+              aria-label="Project menu"
             >
-              {menuItems.map(item => (
-                <button
-                  key={item.label}
-                  onClick={(e) => { e.stopPropagation(); item.action() }}
-                  className={`flex w-full items-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
-                    item.danger
-                      ? 'text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10'
-                      : 'text-dark dark:text-secondary hover:bg-muted dark:hover:bg-white/5'
-                  }`}
-                >
-                  <item.icon size={14} />
-                  {item.label}
-                </button>
-              ))}
-            </motion.div>
+              <MoreVertical size={16} />
+            </button>
           )}
-        </AnimatePresence>
+          items={menuItems.map((item) => ({ ...item, onClick: () => item.onClick() }))}
+        />
       </div>
     </motion.div>
   )
