@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, Search, MoreVertical, Copy, Archive, Trash2, Eye, RotateCcw, Download, Upload, FolderOpen, ClipboardList } from 'lucide-react';
+import { Plus, Search, Copy, Archive, Trash2, Eye, RotateCcw, Download, Upload, FolderOpen, ClipboardList, ChevronDown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { ActionMenu } from '@/components/ui/action-menu';
 import { useTeacherStore } from '../store';
 import { exportQuestionsJSON, exportQuestionsCSV, exportQuestionsExcel } from '../importExport';
 import { QUESTION_TYPE_LABELS, DIFFICULTY_LABELS, type Difficulty, type QuestionType, type Question } from '../types';
@@ -24,9 +25,7 @@ export function QuestionBankPage() {
   const [filterCategory, setFilterCategory] = useState('all');
   const [sortBy, setSortBy] = useState<SortBy>('newest');
   const [showArchived, setShowArchived] = useState(false);
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [showUngrouped, setShowUngrouped] = useState(false);
 
   useEffect(() => {
@@ -47,7 +46,6 @@ export function QuestionBankPage() {
   const handleExport = (format: 'json'|'csv'|'excel') => {
     const data = filteredUngrouped.length > 0 ? filteredUngrouped : source;
     if (format === 'json') exportQuestionsJSON(data); else if (format === 'csv') exportQuestionsCSV(data); else exportQuestionsExcel(data);
-    setExportMenuOpen(false);
   };
   const diffColor: Record<Difficulty, string> = { easy: 'success', medium: 'default', hard: 'muted' };
 
@@ -56,7 +54,20 @@ export function QuestionBankPage() {
       <div className="flex items-center justify-between gap-4">
         <div><h1 className="font-display text-2xl font-semibold">Question Bank</h1><p className="mt-0.5 text-sm text-muted-foreground">{questionSets.length} question sets · {questions.length} questions</p></div>
         <div className="flex items-center gap-2">
-          <div className="relative"><button onClick={() => setExportMenuOpen(!exportMenuOpen)} className="flex items-center gap-2 rounded-2xl border border-border px-3 py-2 text-sm font-medium hover:bg-muted/30 dark:border-border-dark" style={{minHeight:44}}><Download size={16}/> Export</button>{exportMenuOpen&&<div className="absolute right-0 top-12 z-30 w-40 rounded-2xl border border-border bg-surface py-1 shadow-lg dark:border-border-dark dark:bg-surface-dark"><button onClick={()=>handleExport('json')} className="block w-full px-4 py-2 text-left text-sm hover:bg-muted/30">JSON</button><button onClick={()=>handleExport('csv')} className="block w-full px-4 py-2 text-left text-sm hover:bg-muted/30">CSV</button><button onClick={()=>handleExport('excel')} className="block w-full px-4 py-2 text-left text-sm hover:bg-muted/30">Excel</button></div>}</div>
+          <ActionMenu
+            align="right"
+            menuWidth={160}
+            trigger={({ onClick, open }) => (
+              <button onClick={onClick} className={cn('flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-medium', open ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted/30 dark:border-border-dark')} style={{ minHeight: 44 }}>
+                <Download size={16} /> Export
+              </button>
+            )}
+            items={[
+              { icon: Download, label: 'JSON', onClick: () => handleExport('json') },
+              { icon: Download, label: 'CSV', onClick: () => handleExport('csv') },
+              { icon: Download, label: 'Excel', onClick: () => handleExport('excel') },
+            ]}
+          />
           <button onClick={()=>navigate('/teacher/questions/import')} className="flex items-center gap-2 rounded-2xl border border-border px-3 py-2 text-sm font-medium hover:bg-muted/30 dark:border-border-dark" style={{minHeight:44}}><Upload size={16}/> Import</button>
           <button onClick={()=>navigate('/teacher/questions/new')} className="flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90" style={{minHeight:44}}><Plus size={16}/> New</button>
         </div>
@@ -78,7 +89,7 @@ export function QuestionBankPage() {
         </div>
         {filteredSets.length===0 && <Card><CardContent className="p-8 text-center"><FolderOpen size={32} className="mx-auto text-muted-foreground/50"/><p className="mt-3 text-sm text-muted-foreground">No Question Set found.</p><button onClick={()=>navigate('/teacher/questions/import')} className="mt-3 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Import a Question Set</button></CardContent></Card>}
 
-        <Card><CardContent className="p-0"><button onClick={()=>setShowUngrouped(!showUngrouped)} className="flex w-full items-center justify-between px-5 py-4 text-left"><div><h2 className="text-sm font-semibold">Individual / Ungrouped Questions</h2><p className="mt-0.5 text-xs text-muted-foreground">{filteredUngrouped.length} active matching questions</p></div><span className="text-xs text-muted-foreground">{showUngrouped?'Hide':'Show'}</span></button>{showUngrouped&&<div className="border-t border-border dark:border-border-dark">{filteredUngrouped.length===0?<p className="p-6 text-center text-sm text-muted-foreground">No ungrouped questions.</p>:filteredUngrouped.map(q=><QuestionRow key={q.id} q={q} diffColor={diffColor} menuOpen={menuOpen} setMenuOpen={setMenuOpen} onEdit={()=>navigate(`/teacher/questions/${q.id}/edit`)} onDuplicate={()=>duplicateQuestion(q.id)} onArchive={()=>archiveQuestion(q.id,!q.archived)} onDelete={()=>setConfirmDelete(q.id)} />)}</div>}</CardContent></Card>
+        <Card><CardContent className="p-0"><button onClick={()=>setShowUngrouped(!showUngrouped)} className="flex w-full items-center justify-between px-5 py-4 text-left"><div><h2 className="text-sm font-semibold">Individual / Ungrouped Questions</h2><p className="mt-0.5 text-xs text-muted-foreground">{filteredUngrouped.length} active matching questions</p></div><span className="text-xs text-muted-foreground">{showUngrouped?'Hide':'Show'}</span></button>{showUngrouped&&<div className="border-t border-border dark:border-border-dark">{filteredUngrouped.length===0?<p className="p-6 text-center text-sm text-muted-foreground">No ungrouped questions.</p>:filteredUngrouped.map(q=><QuestionRow key={q.id} q={q} diffColor={diffColor} onEdit={()=>navigate(`/teacher/questions/${q.id}/edit`)} onDuplicate={()=>duplicateQuestion(q.id)} onArchive={()=>archiveQuestion(q.id,!q.archived)} onDelete={()=>setConfirmDelete(q.id)} />)}</div>}</CardContent></Card>
       </>}
 
       <ConfirmDialog open={!!confirmDelete} title="Delete Question" message="This will permanently delete this question. This cannot be undone." confirmLabel="Delete" destructive onConfirm={()=>{if(confirmDelete)deleteQuestion(confirmDelete);setConfirmDelete(null)}} onCancel={()=>setConfirmDelete(null)}/>
@@ -86,7 +97,21 @@ export function QuestionBankPage() {
   );
 }
 
-function QuestionRow({q,diffColor,menuOpen,setMenuOpen,onEdit,onDuplicate,onArchive,onDelete}:{q:Question;diffColor:Record<Difficulty,string>;menuOpen:string|null;setMenuOpen:(v:string|null)=>void;onEdit:()=>void;onDuplicate:()=>void;onArchive:()=>void;onDelete:()=>void}){
-  return <div className="flex items-start justify-between gap-3 border-b border-border p-4 last:border-b-0 dark:border-border-dark"><div className="min-w-0 flex-1 cursor-pointer" onClick={onEdit}><div className="mb-1 flex flex-wrap items-center gap-2"><Badge variant="outline">{QUESTION_TYPE_LABELS[q.type]}</Badge><Badge variant={diffColor[q.difficulty] as any}>{DIFFICULTY_LABELS[q.difficulty]}</Badge><span className="text-xs text-muted-foreground">{q.points} pts</span></div><p className="text-sm font-medium">{q.question}</p></div><div className="relative"><button onClick={()=>setMenuOpen(menuOpen===q.id?null:q.id)} className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/40"><MoreVertical size={18}/></button>{menuOpen===q.id&&<><div className="fixed inset-0 z-20" onClick={()=>setMenuOpen(null)}/><div className="absolute right-0 top-10 z-30 w-44 rounded-2xl border border-border bg-surface py-1 shadow-lg dark:border-border-dark dark:bg-surface-dark"><MenuItem icon={Eye} label="Preview" onClick={onEdit}/><MenuItem icon={Copy} label="Duplicate" onClick={onDuplicate}/><MenuItem icon={q.archived?RotateCcw:Archive} label={q.archived?'Restore':'Archive'} onClick={onArchive}/><MenuItem icon={Trash2} label="Delete" danger onClick={onDelete}/></div></>}</div></div>
+function QuestionRow({q,diffColor,onEdit,onDuplicate,onArchive,onDelete}:{q:Question;diffColor:Record<Difficulty,string>;onEdit:()=>void;onDuplicate:()=>void;onArchive:()=>void;onDelete:()=>void}){
+  return <div className="flex items-start justify-between gap-3 border-b border-border p-4 last:border-b-0 dark:border-border-dark">
+    <div className="min-w-0 flex-1 cursor-pointer" onClick={onEdit}><div className="mb-1 flex flex-wrap items-center gap-2"><Badge variant="outline">{QUESTION_TYPE_LABELS[q.type]}</Badge><Badge variant={diffColor[q.difficulty] as any}>{DIFFICULTY_LABELS[q.difficulty]}</Badge><span className="text-xs text-muted-foreground">{q.points} pts</span></div><p className="text-sm font-medium">{q.question}</p></div>
+    <ActionMenu
+      trigger={({ onClick, open }) => (
+        <button onClick={onClick} className={cn('flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors', open ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted/40 dark:border-border-dark')} style={{ minHeight: 36 }}>
+          Kelola <ChevronDown size={14} className={cn('transition-transform', open && 'rotate-180')} />
+        </button>
+      )}
+      items={[
+        { icon: Eye, label: 'Preview', onClick: onEdit },
+        { icon: Copy, label: 'Duplicate', onClick: onDuplicate },
+        { icon: q.archived ? RotateCcw : Archive, label: q.archived ? 'Restore' : 'Archive', onClick: onArchive },
+        { icon: Trash2, label: 'Delete', danger: true, onClick: onDelete },
+      ]}
+    />
+  </div>
 }
-function MenuItem({icon:Icon,label,onClick,danger=false}:{icon:any;label:string;onClick:()=>void;danger?:boolean}){return <button onClick={()=>onClick()} className={cn('flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-muted/30',danger&&'text-red-500')}><Icon size={15}/>{label}</button>}
