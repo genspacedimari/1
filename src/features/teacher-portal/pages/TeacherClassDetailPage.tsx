@@ -6,6 +6,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useTeacherStore } from '../store';
 import { supabase } from '@/services/supabaseClient';
+import { AvatarFrame } from '@/features/badges/AvatarFrame';
+import { fetchBestPlacements, type BadgePlacement } from '@/features/badges/services';
 import type { ClassStudent } from '../types';
 
 interface ScoreLeaderboardEntry {
@@ -33,6 +35,7 @@ export function TeacherClassDetailPage() {
   const navigate = useNavigate();
   const { classes, exams, loadClasses, loadExams, fetchClassStudents } = useTeacherStore();
   const [students, setStudents] = useState<ClassStudent[]>([]);
+  const [placements, setPlacements] = useState<Map<string, BadgePlacement | null>>(new Map());
   const [scoreLeaderboard, setScoreLeaderboard] = useState<ScoreLeaderboardEntry[]>([]);
   const [examScoreRows, setExamScoreRows] = useState<ExamScoreRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +56,7 @@ export function TeacherClassDetailPage() {
         setStudents(studs);
         setScoreLeaderboard(lb);
         setExamScoreRows(examScores);
+        fetchBestPlacements(studs.map((s) => s.studentId)).then(setPlacements).catch(() => {});
       })
       .finally(() => setLoading(false));
   }, [classId]);
@@ -230,9 +234,12 @@ export function TeacherClassDetailPage() {
                 <div className="max-h-96 overflow-y-auto divide-y divide-border dark:divide-border-dark">
                   {students.map((s) => (
                     <div key={s.id} className="flex items-center gap-3 px-5 py-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                        {(s.fullName || '?').charAt(0).toUpperCase()}
-                      </div>
+                      <AvatarFrame
+                        avatarUrl={s.avatarUrl}
+                        fullName={s.fullName || '?'}
+                        placement={placements.get(s.studentId) ?? null}
+                        size={36}
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{s.fullName}</p>
                         <p className="truncate text-xs text-muted-foreground">{s.email}</p>
