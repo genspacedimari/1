@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, MoveVertical as MoreVertical, Trash2, Copy, Users, Pencil, CircleAlert as AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Copy, Users, Pencil, ChevronDown, CircleAlert as AlertCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { ActionMenu } from '@/components/ui/action-menu';
 import { useTeacherStore } from '../store';
+import { cn } from '@/utils/cn';
 
 
 export function ClassesPage() {
@@ -12,7 +14,6 @@ export function ClassesPage() {
   const { classes, loadClasses, createClass, renameClass, deleteClass } = useTeacherStore();
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -144,22 +145,24 @@ export function ClassesPage() {
                         </div>
                       </div>
                       <div className="relative shrink-0">
-                        <button onClick={() => setMenuOpen(menuOpen === cls.id ? null : cls.id)} className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/40 dark:hover:bg-white/5">
-                          <MoreVertical size={18} />
-                        </button>
-                        {menuOpen === cls.id && (
-                          <>
-                            <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(null)} />
-                            <div className="absolute right-0 top-11 z-30 w-40 rounded-2xl border border-border bg-surface py-1 shadow-lg dark:border-border-dark dark:bg-surface-dark">
-                              <button onClick={() => { setRenameId(cls.id); setRenameValue(cls.name); setMenuOpen(null); }} className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-muted/30">
-                                <Pencil size={16} /> Rename
-                              </button>
-                              <button onClick={() => { setConfirmDelete(cls.id); setMenuOpen(null); }} className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-500 hover:bg-muted/30">
-                                <Trash2 size={16} /> Delete
-                              </button>
-                            </div>
-                          </>
-                        )}
+                        <ActionMenu
+                          trigger={({ onClick, open }) => (
+                            <button
+                              onClick={onClick}
+                              className={cn(
+                                'flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors',
+                                open ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted/40 dark:border-border-dark dark:hover:bg-white/5'
+                              )}
+                              style={{ minHeight: 36 }}
+                            >
+                              Kelola <ChevronDown size={14} className={cn('transition-transform', open && 'rotate-180')} />
+                            </button>
+                          )}
+                          items={[
+                            { icon: Pencil, label: 'Rename', onClick: () => { setRenameId(cls.id); setRenameValue(cls.name); } },
+                            { icon: Trash2, label: 'Delete', danger: true, onClick: () => setConfirmDelete(cls.id) },
+                          ]}
+                        />
                       </div>
                     </div>
                   )}
