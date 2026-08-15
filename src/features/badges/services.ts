@@ -21,6 +21,35 @@ export function bestPlacement(badges: UserBadge[]): BadgePlacement | null {
 }
 
 /**
+ * Batched version of fetchUserBadges + bestPlacement for rendering a list of
+ * avatars (class members, community members, leaderboards, etc.) without
+ * firing one query per user. Returns a map of userId -> best placement
+ * (or undefined if that user has no official GSC badge).
+ */
+export async function fetchBestPlacements(userIds: string[]): Promise<Map<string, BadgePlacement | null>> {
+  const result = new Map<string, BadgePlacement | null>();
+  if (userIds.length === 0) return result;
+
+  const { data, error } = await supabase
+    .from('genspace_badge_awards')
+    .select('user_id, placement')
+    .in('user_id', userIds);
+  if (error) {
+    // Non-fatal — avatars just render without a badge frame.
+    return result;
+  }
+
+  const rows = (data ?? []) as Array<{ user_id: string; placement: BadgePlacement }>;
+  for (const row of rows) {
+    const current = result.get(row.user_id);
+    if (!current || PLACEMENT_RANK[row.placement] < PLACEMENT_RANK[current]) {
+      result.set(row.user_id, row.placement);
+    }
+  }
+  return result;
+}
+
+/**
  * Fetches every official GENSPACE badge a user has ever won, newest first.
  * Requires the `select_badges_for_authenticated` / `select_badge_awards_for_authenticated`
  * RLS policies (20260814093000 migration) so this works for ANY user's id,
