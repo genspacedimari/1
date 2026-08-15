@@ -794,7 +794,7 @@ export function calculateXP(score: number, baseXP: number): number {
 
 export async function fetchClassDetails(classId: string): Promise<{
   info: import('./types').StudentClassInfo;
-  students: Array<{ id: string; name: string; email: string; joinedAt: string }>;
+  students: Array<{ id: string; name: string; email: string; joinedAt: string; avatarUrl: string | null }>;
   exams: import('./types').ClassExamInfo[];
 } | null> {
   const sid = getStudentId();
@@ -852,13 +852,13 @@ export async function fetchClassDetails(classId: string): Promise<{
     .order('joined_at', { ascending: true });
 
   const studentIds = (studentRows ?? []).map((r) => (r as { student_id: string }).student_id);
-  let students: Array<{ id: string; name: string; email: string; joinedAt: string }> = [];
+  let students: Array<{ id: string; name: string; email: string; joinedAt: string; avatarUrl: string | null }> = [];
   if (studentIds.length > 0) {
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, full_name, email')
+      .select('id, full_name, email, avatar_url')
       .in('id', studentIds);
-    const profileMap = new Map((profiles ?? []).map((p) => [(p as { id: string }).id, p as { full_name: string; email: string }]));
+    const profileMap = new Map((profiles ?? []).map((p) => [(p as { id: string }).id, p as { full_name: string; email: string; avatar_url: string | null }]));
     students = (studentRows ?? []).map((r) => {
       const row = r as { student_id: string; joined_at: string };
       const p = profileMap.get(row.student_id);
@@ -867,6 +867,7 @@ export async function fetchClassDetails(classId: string): Promise<{
         name: p?.full_name ?? 'Unknown',
         email: p?.email ?? '',
         joinedAt: row.joined_at,
+        avatarUrl: p?.avatar_url ?? null,
       };
     });
   }
