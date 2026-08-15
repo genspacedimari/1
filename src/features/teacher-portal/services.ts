@@ -967,11 +967,16 @@ export async function fetchClassStudents(classId: string): Promise<ClassStudent[
   const studentIds = Array.from(new Set(rows.map((r) => r.student_id)));
   const { data: profileRows, error: profileErr } = await supabase
     .from('profiles')
-    .select('id, full_name, email, username')
+    .select('id, full_name, email, username, avatar_url')
     .in('id', studentIds);
   if (profileErr) throw profileErr;
   const profileMap = new Map(
-    (profileRows ?? []).map((p) => [p.id, { full_name: p.full_name as string, email: p.email as string, username: p.username as string }])
+    (profileRows ?? []).map((p) => [p.id, {
+      full_name: p.full_name as string,
+      email: p.email as string,
+      username: p.username as string,
+      avatar_url: (p as { avatar_url: string | null }).avatar_url ?? null,
+    }])
   );
 
   return rows.map((r) => ({
@@ -982,6 +987,7 @@ export async function fetchClassStudents(classId: string): Promise<ClassStudent[
     fullName: profileMap.get(r.student_id)?.full_name ?? 'Unknown',
     email: profileMap.get(r.student_id)?.email ?? '',
     username: profileMap.get(r.student_id)?.username ?? '',
+    avatarUrl: profileMap.get(r.student_id)?.avatar_url ?? null,
   }));
 }
 
@@ -1135,7 +1141,13 @@ export async function fetchStudents(): Promise<StudentSummary[]> {
 export async function fetchStudentDetail(studentId: string): Promise<StudentDetail | null> {
   const results = await fetchExamResults();
   const studentResults = results.filter((r) => r.studentId === studentId);
-  if (studentResults.length === 0) return null;
+
+  // A student can be a class member with zero exam attempts (e.g. just
+  // joined, or the class has no exams yet) — that's not the same as the
+  // student not existing. Only bail out here if we truly can't find any
+  // profile for this id; otherwise fall through and build the detail view
+  // from their profile/class data with exam stats defaulted to zero.
+  let profileExists = studentResults.length > 0;
 
   const completed = studentResults.filter((r) => r.status === 'completed');
   const totalExams = completed.length;
@@ -1152,19 +1164,27 @@ export async function fetchStudentDetail(studentId: string): Promise<StudentDeta
     ? Math.round((totalCorrect / (totalCorrect + totalWrong)) * 100)
     : 0;
 
-  const first = studentResults[0];
+  const first = studentResults[0] as (typeof studentResults)[number] | undefined;
 
-  // XP and level from profiles
+  // Name/email/XP/level from the profile directly — this is the source of
+  // truth regardless of whether the student has taken any exams yet.
   let xp = 0;
   let level = 1;
   let schoolName: string | null = null;
   let schoolId: string | null = null;
+  let studentName = first?.studentName ?? '';
+  let studentEmail = first?.studentEmail ?? '';
+  let avatarUrl: string | null = null;
   const { data: profile } = await supabase
     .from('profiles')
-    .select('xp, level, school_id, schools!left(name)')
+    .select('full_name, email, avatar_url, xp, level, school_id, schools!left(name)')
     .eq('id', studentId)
     .maybeSingle();
   if (profile) {
+    profileExists = true;
+    studentName = (profile as { full_name: string }).full_name ?? studentName;
+    studentEmail = (profile as { email: string }).email ?? studentEmail;
+    avatarUrl = (profile as { avatar_url: string | null }).avatar_url ?? null;
     xp = (profile as { xp: number }).xp ?? 0;
     level = (profile as { level: number }).level ?? 1;
     schoolId = (profile as { school_id: string | null }).school_id ?? null;
@@ -1172,8 +1192,10 @@ export async function fetchStudentDetail(studentId: string): Promise<StudentDeta
     schoolName = schoolJoin?.name ?? null;
   }
 
+  if (!profileExists) return null;
+
   // Class + teacher info
-  let className: string | null = first.className;
+  let className: string | null = first?.className ?? null;
   let teacherName: string | null = null;
   const { data: csRow } = await supabase
     .from('class_students')
@@ -1253,8 +1275,9 @@ export async function fetchStudentDetail(studentId: string): Promise<StudentDeta
 
   return {
     studentId,
-    studentName: first.studentName,
-    studentEmail: first.studentEmail,
+    studentName,
+    studentEmail,
+    avatarUrl,
     className,
     schoolName,
     teacherName,
