@@ -4,6 +4,8 @@ import { ArrowLeft, Mail, Award, TrendingUp, Zap, Trophy, Clock, FileText, Chevr
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useTeacherStore } from '../store';
+import { AvatarFrame } from '@/features/badges/AvatarFrame';
+import { fetchBestPlacements, type BadgePlacement } from '@/features/badges/services';
 import type { StudentDetail } from '../types';
 
 function timeAgo(iso: string): string {
@@ -25,6 +27,7 @@ export function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { fetchStudentDetail } = useTeacherStore();
   const [student, setStudent] = useState<StudentDetail | null>(null);
+  const [placement, setPlacement] = useState<BadgePlacement | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,6 +36,9 @@ export function StudentDetailPage() {
     fetchStudentDetail(id).then((data) => {
       setStudent(data);
       setLoading(false);
+      if (data) {
+        fetchBestPlacements([data.studentId]).then((m) => setPlacement(m.get(data.studentId) ?? null)).catch(() => {});
+      }
     }).catch(() => setLoading(false));
   }, [id, fetchStudentDetail]);
 
@@ -72,9 +78,7 @@ export function StudentDetailPage() {
       <Card>
         <CardContent className="space-y-4 p-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <span className="font-display text-xl font-bold">{student.studentName.charAt(0).toUpperCase()}</span>
-            </div>
+            <AvatarFrame avatarUrl={student.avatarUrl} fullName={student.studentName} placement={placement} size={56} />
             <div className="min-w-0">
               <h2 className="font-display text-lg font-semibold">{student.studentName}</h2>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
