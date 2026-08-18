@@ -3,9 +3,9 @@ import { Plus, Save, Play, Trash2, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LadderEditorScreen } from '@/features/plc-simulator/components/LadderEditorScreen';
-import { importFromLadderJson } from '@/simulator/editor/importFromLadderJson';
 import { createMasterProgram, fetchMasterPrograms, updateMasterProgram } from './services';
 import type { MasterProgram, LadderChallengeDraft } from './types';
+import type { LadderProject } from '@/simulator/types/ladder';
 import { createTestCase } from './types';
 import type { LadderChallengeType, LadderTestCase } from '@/features/quiz/types';
 import { gradeLadderProgram } from '@/features/quiz/ladderGrading';
@@ -16,10 +16,11 @@ interface Props {
   disabled?: boolean;
 }
 
-function parseProject(json: string | null) {
+function parseProject(json: string | null): LadderProject | null {
   if (!json) return null;
   try {
-    return importFromLadderJson(JSON.parse(json));
+    const parsed = JSON.parse(json) as LadderProject;
+    return parsed && Array.isArray(parsed.rungs) && parsed.meta ? parsed : null;
   } catch {
     return null;
   }
@@ -54,10 +55,6 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
     if (!value.testCases.length) onChange({ ...value, testCases: [createTestCase()] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const setField = <K extends keyof LadderChallengeDraft>(key: K, next: LadderChallengeDraft[K]) => {
-    onChange({ ...value, [key]: next });
-  };
 
   const handleChallengeType = (next: LadderChallengeType) => {
     const base = value.baseProgramJson;
