@@ -6,6 +6,7 @@ import { LadderGrid } from './LadderGrid';
 import { SimulationPanel } from './SimulationPanel';
 import { DebuggerPanel } from './DebuggerPanel';
 import { simPalette, SIM_FONT_MONO, SIM_KIND_COLOR, useSimIsDark } from '../theme';
+import type { LadderProject } from '@/simulator/types/ladder';
 
 /**
  * Top-level composition: Toolbar + ladder grid (rungs/rows/outputs) +
@@ -15,7 +16,13 @@ import { simPalette, SIM_FONT_MONO, SIM_KIND_COLOR, useSimIsDark } from '../them
  * Figma prototype's dark "PLC STATUS" bottom bar — visual only, no change
  * to the store wiring above.
  */
-export function LadderEditorScreen() {
+export interface LadderEditorScreenProps {
+  initialProject?: LadderProject | null;
+  onSaveLadder?: (ladderJson: string) => void;
+  saveLabel?: string;
+}
+
+export function LadderEditorScreen({ initialProject = null, onSaveLadder, saveLabel = 'Simpan Program' }: LadderEditorScreenProps) {
   const isDark = useSimIsDark();
   const p = simPalette(isDark);
 
@@ -27,6 +34,8 @@ export function LadderEditorScreen() {
   const addRung = useLadderEditorStore((s) => s.addRung);
   const exportToLadderJson = useLadderEditorStore((s) => s.exportToLadderJson);
   const lastErrors = useLadderEditorStore((s) => s.lastErrors);
+  const resetDocument = useLadderEditorStore((s) => s.resetDocument);
+  const editorLoadProject = useLadderEditorStore((s) => s.loadProject);
 
   const loadProject = usePlcStore((s) => s.loadProject);
   const start = usePlcStore((s) => s.start);
@@ -35,6 +44,16 @@ export function LadderEditorScreen() {
   const reset = usePlcStore((s) => s.reset);
   const scanCount = usePlcStore((s) => s.state.scanCount);
   const lastScanDurationMs = usePlcStore((s) => s.state.lastScanDurationMs);
+
+  useEffect(() => {
+    if (initialProject) editorLoadProject(initialProject);
+    else resetDocument('Untitled Ladder');
+    return () => {
+      resetDocument('Untitled Ladder');
+      reset();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialProject]);
 
   useEffect(() => {
     if (!errorMessage) return;
@@ -95,7 +114,19 @@ export function LadderEditorScreen() {
         lastScanDurationMs={lastScanDurationMs}
       />
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-2">
+        {onSaveLadder && (
+          <button
+            onClick={() => {
+              const result = exportToLadderJson();
+              if (result.errors.length === 0) onSaveLadder(JSON.stringify(result.project));
+              else setErrorMessage(result.errors[0]);
+            }}
+            className="rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            {saveLabel}
+          </button>
+        )}
         <button
           onClick={() => setShowDebugger((v) => !v)}
           style={{
