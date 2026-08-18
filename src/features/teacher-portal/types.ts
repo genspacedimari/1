@@ -1,53 +1,9 @@
-import type { TestCase } from '@/features/quiz/behaviorTypes';
-
 export type QuestionType = 'multiple_choice' | 'image' | 'ladder';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type ExamStatus = 'draft' | 'published' | 'archived';
-/** Legacy structural-comparison modes — still readable/gradable for old
- * questions (see src/features/quiz/ladderGrading.ts), but new ladder
- * questions should use ChallengeType + testCases (behavior-based grading,
- * src/features/quiz/behaviorGrading.ts) instead. */
 export type LadderMode = 'build' | 'complete' | 'find_error' | 'predict_output' | 'choose_correct';
+export type LadderChallengeType = 'modify' | 'build' | 'debug';
 export type ResultStatus = 'in_progress' | 'completed' | 'abandoned';
-
-/**
- * How a Ladder PLC question relates to its Master Program (PlcProgram):
- *  - 'modify': student starts from a copy of the program and must change
- *    it per the instruction (e.g. "hapus kontak I2").
- *  - 'create_from_instruction': student starts from a BLANK editor and
- *    must build a program from scratch per the instruction. No starting
- *    ladder is shown.
- *  - 'debug': student starts from a deliberately-broken copy of the
- *    program and must find and fix the error.
- */
-export type ChallengeType = 'modify' | 'create_from_instruction' | 'debug';
-
-export const CHALLENGE_TYPE_LABELS: Record<ChallengeType, string> = {
-  modify: 'Modifikasi Program',
-  create_from_instruction: 'Buat Program dari Instruksi',
-  debug: 'Debugging / Perbaiki Program',
-};
-
-/**
- * Master Program — a reusable base ladder program a teacher builds once
- * in the Ladder Editor/Simulator, then turns into many questions (spec
- * section 2: "1 Master Program = bisa memiliki banyak soal"). Lives in
- * the teacher's "PLC Program Library".
- */
-export interface PlcProgram {
-  id: string;
-  teacherId: string;
-  name: string;
-  description: string | null;
-  /** The full LadderProject, JSON-encoded — same shape the Ladder
-   * Editor/Simulator/PlcRuntime already read and write. */
-  programJson: string;
-  /** How many questions currently reference this program (for the
-   * Program Library list view — "Kontrol Motor Dasar · 3 soal"). */
-  questionCount?: number;
-  createdAt: string;
-  updatedAt: string;
-}
 
 export interface QuestionCategory {
   id: string;
@@ -69,37 +25,29 @@ export interface QuestionImage {
   imageUrl: string;
 }
 
+export interface LadderTestCase {
+  id: string;
+  name: string;
+  durationMs: number;
+  weight: number;
+  inputs: Record<string, boolean>;
+  expectedOutputs: Record<string, boolean>;
+  expectedMemory?: Record<string, boolean>;
+  expectedTimers?: Record<string, { done?: boolean; valueMsAtLeast?: number }>;
+  expectedCounters?: Record<string, { done?: boolean; valueAtLeast?: number }>;
+}
+
 export interface LadderQuestionData {
   id?: string;
-  /** @deprecated kept for old questions graded by ladderGrading.ts's
-   * structural comparison. New questions should set challengeType +
-   * testCases instead and leave this as any legacy value / 'build'. */
   mode: LadderMode;
-  /** Starting ladder shown to the student, JSON-encoded LadderProject.
-   * Null for challengeType 'create_from_instruction' (blank editor). For
-   * 'modify'/'debug' this is a SNAPSHOT copied from the Master Program
-   * (optionally with an intentional bug introduced for 'debug') — editing
-   * the Master Program later does not retroactively change it. */
+  challengeType?: LadderChallengeType | null;
+  masterProgramId?: string | null;
   ladderJson: string | null;
-  /** @deprecated legacy free-text expected output, superseded by
-   * testCases' structured expectedOutputs. */
+  starterLadderJson?: string | null;
   expectedOutput: string | null;
-  /** Optional reference/answer program a teacher can run "Test Answer"
-   * against before publishing (spec section 9). Never shown to students. */
   answerLadderJson: string | null;
-  /** The Master Program this question was created from, if any. Optional
-   * so 'create_from_instruction' questions (which don't need a base
-   * program) and old rows created before this field existed both work. */
-  programId?: string | null;
-  /** Which of the three authoring flows (spec section 3) this question
-   * uses. Optional for backward compatibility with rows saved before this
-   * field existed — treat missing as 'modify' when reading legacy rows. */
-  challengeType?: ChallengeType;
-  /** Behavior-based test cases (spec sections 6-8) — the actual grading
-   * source of truth for questions created via the new flow. Run through
-   * src/features/quiz/behaviorGrading.ts's runTestSuite(). Empty/omitted
-   * for legacy questions still graded by structural comparison. */
-  testCases?: TestCase[];
+  answerProgramJson?: string | null;
+  testCases?: LadderTestCase[];
 }
 
 export interface QuestionSet {
