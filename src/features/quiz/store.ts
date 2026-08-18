@@ -5,6 +5,7 @@ import type {
 } from './types';
 import * as svc from './services';
 import { useAuthStore } from '@/stores/authStore';
+import { gradeLadderQuestionScore } from './ladderGrading';
 
 interface QuizState {
   // Data
@@ -149,23 +150,20 @@ export const useQuizStore = create<QuizState>((set, get) => ({
 
     for (const q of activeExam.questions) {
       const ans = answers[q.id];
-      let isCorrect = false;
+      let questionFraction = 0;
       if (q.type === 'multiple_choice' && typeof ans === 'number') {
-        isCorrect = svc.gradeMCQuestion(q.options, ans);
+        questionFraction = svc.gradeMCQuestion(q.options, ans) ? 1 : 0;
       } else if (q.type === 'image' && typeof ans === 'number') {
-        isCorrect = svc.gradeImageQuestion(q.options, ans);
+        questionFraction = svc.gradeImageQuestion(q.options, ans) ? 1 : 0;
       } else if (q.type === 'ladder' && typeof ans === 'string') {
-        isCorrect = (await import('./ladderGrading')).gradeLadderQuestion(q, ans);
+        questionFraction = await gradeLadderQuestionScore(q, ans);
       }
-      if (isCorrect) {
-        correct++;
-        earnedPoints += q.points;
-      } else {
-        wrong++;
-      }
+      earnedPoints += q.points * questionFraction;
+      if (questionFraction >= 0.999999) correct++;
+      else wrong++;
     }
 
-    const score = svc.calculateScore(correct, activeExam.questions.length, totalPoints);
+    const score = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
     const timeUsedSeconds = Math.floor((Date.now() - startTime) / 1000);
     const xp = svc.calculateXP(score, totalPoints);
 
