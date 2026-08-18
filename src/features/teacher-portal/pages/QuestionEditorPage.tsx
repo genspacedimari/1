@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Save, Plus, Trash2, Upload, Image as ImageIcon, X } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, Upload, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useTeacherStore } from '../store';
 import { uploadQuestionImage } from '../services';
 import {
-  QUESTION_TYPE_LABELS, LADDER_MODE_LABELS, type QuestionType, type Difficulty, type LadderMode,
+  QUESTION_TYPE_LABELS, type QuestionType, type Difficulty, type LadderMode,
 } from '../types';
 import { cn } from '@/utils/cn';
+import { LadderChallengePanel } from '@/features/plc-challenges/LadderChallengePanel';
+import type { LadderChallengeDraft } from '@/features/plc-challenges/types';
 
 export function QuestionEditorPage() {
   const navigate = useNavigate();
@@ -33,9 +35,15 @@ export function QuestionEditorPage() {
   ]);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [ladderMode, setLadderMode] = useState<LadderMode>('build');
-  const [ladderJson, setLadderJson] = useState<string>('');
-  const [expectedOutput, setExpectedOutput] = useState('');
-  const [answerLadderJson, setAnswerLadderJson] = useState('');
+  const [ladderChallenge, setLadderChallenge] = useState<LadderChallengeDraft>({
+    challengeType: 'build',
+    masterProgramId: null,
+    baseProgramJson: null,
+    starterProgramJson: null,
+    answerProgramJson: null,
+    expectedOutput: null,
+    testCases: [],
+  });
   const [saving, setSaving] = useState(false);
   const [saveIndicator, setSaveIndicator] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -61,9 +69,17 @@ export function QuestionEditorPage() {
           setImageUrls(q.images.map((i) => i.imageUrl));
           if (q.ladderData) {
             setLadderMode(q.ladderData.mode);
-            setLadderJson(q.ladderData.ladderJson ?? '');
-            setExpectedOutput(q.ladderData.expectedOutput ?? '');
-            setAnswerLadderJson(q.ladderData.answerLadderJson ?? '');
+            const inferredType = q.ladderData.challengeType
+              ?? (q.ladderData.mode === 'find_error' ? 'debug' : q.ladderData.mode === 'complete' ? 'modify' : 'build');
+            setLadderChallenge({
+              challengeType: inferredType,
+              masterProgramId: q.ladderData.masterProgramId ?? null,
+              baseProgramJson: q.ladderData.ladderJson ?? null,
+              starterProgramJson: q.ladderData.starterLadderJson ?? q.ladderData.ladderJson ?? null,
+              answerProgramJson: q.ladderData.answerProgramJson ?? q.ladderData.answerLadderJson ?? null,
+              expectedOutput: q.ladderData.expectedOutput ?? null,
+              testCases: q.ladderData.testCases ?? [],
+            });
           }
         }
       });
@@ -116,9 +132,14 @@ export function QuestionEditorPage() {
         images: type === 'image' ? imageUrls.map((url) => ({ imageUrl: url })) as { imageUrl: string }[] : undefined,
         ladderData: type === 'ladder' ? {
           mode: ladderMode,
-          ladderJson: ladderJson || null,
-          expectedOutput: expectedOutput || null,
-          answerLadderJson: answerLadderJson || null,
+          challengeType: ladderChallenge.challengeType,
+          masterProgramId: ladderChallenge.masterProgramId,
+          ladderJson: ladderChallenge.baseProgramJson,
+          starterLadderJson: ladderChallenge.starterProgramJson,
+          expectedOutput: ladderChallenge.expectedOutput,
+          answerLadderJson: ladderChallenge.answerProgramJson,
+          answerProgramJson: ladderChallenge.answerProgramJson,
+          testCases: ladderChallenge.testCases,
         } : null,
       };
       if (isEdit && id) {
@@ -381,69 +402,12 @@ export function QuestionEditorPage() {
         </Card>
       )}
 
-      {/* Ladder question */}
+      {/* Visual Ladder PLC challenge */}
       {type === 'ladder' && (
-        <Card>
-          <CardContent className="space-y-4 p-5">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Ladder Mode</label>
-              <select
-                value={ladderMode}
-                onChange={(e) => { setLadderMode(e.target.value as LadderMode); markDirty(); }}
-                className={inputClass}
-              >
-                {Object.entries(LADDER_MODE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                Ladder JSON (from the Ladder Editor)
-              </label>
-              <textarea
-                value={ladderJson}
-                onChange={(e) => { setLadderJson(e.target.value); markDirty(); }}
-                rows={6}
-                className={cn(inputClass, 'font-mono text-xs')}
-                placeholder="Paste the ladder JSON exported from the Ladder Editor..."
-              />
-              <button
-                onClick={() => navigate('/simulator')}
-                className="mt-2 flex items-center gap-2 text-sm font-medium text-primary"
-              >
-                <ImageIcon size={14} /> Open Ladder Editor to create ladder
-              </button>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                Expected Output (optional)
-              </label>
-              <textarea
-                value={expectedOutput}
-                onChange={(e) => { setExpectedOutput(e.target.value); markDirty(); }}
-                rows={3}
-                className={inputClass}
-                placeholder="Describe the expected output behavior..."
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                Answer Ladder JSON (for complete/find_error modes)
-              </label>
-              <textarea
-                value={answerLadderJson}
-                onChange={(e) => { setAnswerLadderJson(e.target.value); markDirty(); }}
-                rows={6}
-                className={cn(inputClass, 'font-mono text-xs')}
-                placeholder="Paste the correct/answer ladder JSON..."
-              />
-            </div>
-          </CardContent>
-        </Card>
+        <LadderChallengePanel
+          value={ladderChallenge}
+          onChange={(next) => { setLadderChallenge(next); markDirty(); }}
+        />
       )}
     </div>
   );
