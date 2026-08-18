@@ -10,7 +10,7 @@ import { useAuthStore } from '@/stores/authStore';
 import * as svc from '@/features/quiz/services';
 import { PALETTE_COLORS, type QuizQuestion } from '@/features/quiz/types';
 import { cn } from '@/utils/cn';
-import { LadderStudentAnswerPanel } from '@/features/plc-challenges/LadderStudentAnswerPanel';
+import { Wrench, CheckCircle2 } from 'lucide-react';
 
 export default function ExamPlayerPage() {
   const navigate = useNavigate();
@@ -310,14 +310,35 @@ export default function ExamPlayerPage() {
             </div>
           )}
 
-          {/* Ladder question */}
-          {currentQ.type === 'ladder' && (
-            <LadderStudentAnswerPanel
-              question={currentQ}
-              value={(answers[currentQ.id] as string) ?? currentQ.starterProgramJson ?? null}
-              onChange={(json) => handleAnswer(json)}
-            />
-          )}
+          {/* Ladder question — build/edit the program in the full Simulator,
+              then apply it back here as the answer. */}
+          {currentQ.type === 'ladder' && (() => {
+            const isAnswered = typeof answers[currentQ.id] === 'string' && !!answers[currentQ.id];
+            return (
+              <div className="rounded-2xl border border-border p-5 dark:border-border-dark">
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="rounded-lg bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                    {currentQ.ladderChallengeType === 'modify' ? 'Modifikasi Program' : currentQ.ladderChallengeType === 'debug' ? 'Debug Program' : 'Buat Program'}
+                  </span>
+                  {isAnswered && (
+                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-500">
+                      <CheckCircle2 size={14} /> Sudah dijawab
+                    </span>
+                  )}
+                </div>
+                {currentQ.expectedOutput && (
+                  <div className="mb-3 rounded-xl bg-primary/5 p-3 text-sm dark:bg-primary/10">
+                    <p className="text-xs font-semibold text-primary">Expected Behavior</p>
+                    <p className="mt-1">{currentQ.expectedOutput}</p>
+                  </div>
+                )}
+                <p className="mb-3 text-xs text-muted-foreground">Soal ini butuh program ladder PLC. Kerjakan di editor Simulator penuh, lalu terapkan jawabanmu.</p>
+                <Button onClick={() => navigate(`/quiz/exam/ladder-answer/${currentQ.id}`)} className="w-full">
+                  <Wrench size={16} /> {isAnswered ? 'Edit Jawaban di Simulator' : 'Jawab dengan Simulator'}
+                </Button>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
