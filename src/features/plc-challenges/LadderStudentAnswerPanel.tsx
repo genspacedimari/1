@@ -3,7 +3,7 @@ import { Play } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LadderEditorScreen } from '@/features/plc-simulator/components/LadderEditorScreen';
-import { importFromLadderJson } from '@/simulator/editor/importFromLadderJson';
+import type { LadderProject } from '@/simulator/types/ladder';
 import { gradeLadderProgram } from '@/features/quiz/ladderGrading';
 import type { QuizQuestion } from '@/features/quiz/types';
 
@@ -17,9 +17,14 @@ export function LadderStudentAnswerPanel({ question, value, onChange }: Props) {
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<{ passed: number; total: number; percent: number; failed: string[] } | null>(null);
   const initialJson = value ?? question.starterProgramJson ?? null;
-  const project = useMemo(() => {
+  const project = useMemo((): LadderProject | null => {
     if (!initialJson) return null;
-    try { return importFromLadderJson(JSON.parse(initialJson)); } catch { return null; }
+    try {
+      const parsed = JSON.parse(initialJson) as LadderProject;
+      return parsed && Array.isArray(parsed.rungs) && parsed.meta ? parsed : null;
+    } catch {
+      return null;
+    }
   }, [initialJson]);
 
   const testProgram = async () => {
