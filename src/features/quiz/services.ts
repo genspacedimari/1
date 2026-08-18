@@ -184,7 +184,7 @@ export async function findExamByCode(code: string): Promise<ExamInfo | null> {
 
   const questionIds = (examQuestions ?? []).map((eq) => eq.question_id).filter((id): id is string => !!id);
   const questions: QuizQuestion[] = [];
-  const snapshotRows = (examQuestions ?? []) as Array<{ question_id: string; sort_order: number; question_snapshot?: QuizQuestion & { options?: Array<{ label: string; isCorrect: boolean }>; images?: Array<{ imageUrl: string }>; ladderData?: { mode?: string; ladderJson?: string | null; expectedOutput?: string | null; answerLadderJson?: string | null } | null } | null }>;
+  const snapshotRows = (examQuestions ?? []) as Array<{ question_id: string; sort_order: number; question_snapshot?: QuizQuestion & { options?: Array<{ label: string; isCorrect: boolean }>; images?: Array<{ imageUrl: string }>; ladderData?: { mode?: string; challengeType?: string; masterProgramId?: string | null; ladderJson?: string | null; starterLadderJson?: string | null; expectedOutput?: string | null; answerLadderJson?: string | null; answerProgramJson?: string | null; testCases?: unknown[] } | null } | null }>;
   const hasSnapshots = snapshotRows.length > 0 && snapshotRows.every((eq) => !!eq.question_snapshot);
   if (hasSnapshots) {
     for (const eq of snapshotRows) {
@@ -199,9 +199,14 @@ export async function findExamByCode(code: string): Promise<ExamInfo | null> {
         options: (snap.options ?? []).map((o) => ({ label: o.label, isCorrect: o.isCorrect })),
         imageUrls: (snap.images ?? []).map((i) => i.imageUrl),
         ladderMode: snap.ladderData?.mode as QuizQuestion['ladderMode'],
+        ladderChallengeType: snap.ladderData?.challengeType as QuizQuestion['ladderChallengeType'],
         ladderJson: snap.ladderData?.ladderJson ?? null,
         expectedOutput: snap.ladderData?.expectedOutput ?? null,
         answerLadderJson: snap.ladderData?.answerLadderJson ?? null,
+        masterProgramId: snap.ladderData?.masterProgramId ?? null,
+        starterProgramJson: snap.ladderData?.starterLadderJson ?? snap.ladderData?.ladderJson ?? null,
+        answerProgramJson: snap.ladderData?.answerProgramJson ?? snap.ladderData?.answerLadderJson ?? null,
+        testCases: Array.isArray(snap.ladderData?.testCases) ? snap.ladderData?.testCases : [],
       });
     }
   } else if (questionIds.length > 0) {
@@ -218,7 +223,7 @@ export async function findExamByCode(code: string): Promise<ExamInfo | null> {
       const qOpts = (opts ?? []).filter((o) => o.question_id === q.id).sort((a, b) => a.sort_order - b.sort_order);
       const qImgs = (imgs ?? []).filter((i) => i.question_id === q.id).map((i) => i.image_url);
       const qLadder = (ladders ?? []).find((l) => l.question_id === q.id);
-      questions.push({ id: q.id, type: q.type, question: q.question, difficulty: q.difficulty, points: q.points, explanation: q.explanation, options: qOpts.map((o) => ({ label: o.label, isCorrect: o.is_correct })), imageUrls: qImgs, ladderMode: qLadder?.mode, ladderJson: qLadder?.ladder_json, expectedOutput: qLadder?.expected_output, answerLadderJson: qLadder?.answer_ladder_json });
+      questions.push({ id: q.id, type: q.type, question: q.question, difficulty: q.difficulty, points: q.points, explanation: q.explanation, options: qOpts.map((o) => ({ label: o.label, isCorrect: o.is_correct })), imageUrls: qImgs, ladderMode: qLadder?.mode, ladderChallengeType: qLadder?.challenge_type as QuizQuestion['ladderChallengeType'], ladderJson: qLadder?.ladder_json, expectedOutput: qLadder?.expected_output, answerLadderJson: qLadder?.answer_ladder_json, masterProgramId: qLadder?.master_program_id ?? null, starterProgramJson: qLadder?.starter_ladder_json ?? qLadder?.ladder_json ?? null, answerProgramJson: qLadder?.answer_program_json ?? qLadder?.answer_ladder_json ?? null, testCases: Array.isArray(qLadder?.test_cases) ? qLadder?.test_cases as QuizQuestion['testCases'] : [] });
     }
   }
 
