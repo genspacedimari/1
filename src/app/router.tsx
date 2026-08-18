@@ -13,6 +13,7 @@ const OfficialQuizPlayerPage = lazy(() => import('@/pages/Quiz/OfficialQuizPlaye
 const JoinExamPage = lazy(() => import('@/pages/Quiz/JoinExamPage'));
 const JoinClassPage = lazy(() => import('@/pages/Quiz/JoinClassPage'));
 const ExamPlayerPage = lazy(() => import('@/pages/Quiz/ExamPlayerPage'));
+const LadderAnswerPage = lazy(() => import('@/pages/Quiz/LadderAnswerPage'));
 const QuizResultPage = lazy(() => import('@/pages/Quiz/QuizResultPage'));
 const ExamLeaderboardPage = lazy(() => import('@/pages/Quiz/ExamLeaderboardPage'));
 const QuizReviewPage = lazy(() => import('@/pages/Quiz/QuizReviewPage'));
@@ -224,6 +225,14 @@ export const router = createBrowserRouter([
         element: (
           <RequireAuth>
             {withSuspense(<ExamPlayerPage />)}
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'quiz/exam/ladder-answer/:questionId',
+        element: (
+          <RequireAuth>
+            {withSuspense(<LadderAnswerPage />)}
           </RequireAuth>
         ),
       },
