@@ -15,10 +15,7 @@ import type {
   StudentDetail,
   ResultDetail,
   QuestionReview,
-  PlcProgram,
-  ChallengeType,
 } from './types';
-import type { TestCase } from '@/features/quiz/behaviorTypes';
 
 const DEBUG = import.meta.env.DEV;
 function debugLog(...args: unknown[]) {
@@ -217,9 +214,11 @@ interface LadderRow {
   ladder_json: string | null;
   expected_output: string | null;
   answer_ladder_json: string | null;
-  program_id?: string | null;
-  challenge_type?: string;
-  test_cases?: TestCase[] | null;
+  challenge_type?: string | null;
+  master_program_id?: string | null;
+  starter_ladder_json?: string | null;
+  answer_program_json?: string | null;
+  test_cases?: unknown;
 }
 
 function mapQuestion(
@@ -252,9 +251,6 @@ function mapQuestion(
           ladderJson: ladder.ladder_json,
           expectedOutput: ladder.expected_output,
           answerLadderJson: ladder.answer_ladder_json,
-          programId: ladder.program_id ?? null,
-          challengeType: (ladder.challenge_type as ChallengeType | undefined) ?? 'modify',
-          testCases: ladder.test_cases ?? [],
         }
       : null,
   };
@@ -352,8 +348,10 @@ export async function createQuestion(input: {
         ladder_json: input.ladderData.ladderJson,
         expected_output: input.ladderData.expectedOutput,
         answer_ladder_json: input.ladderData.answerLadderJson,
-        program_id: input.ladderData.programId ?? null,
-        challenge_type: input.ladderData.challengeType ?? 'modify',
+        challenge_type: input.ladderData.challengeType ?? null,
+        master_program_id: input.ladderData.masterProgramId ?? null,
+        starter_ladder_json: input.ladderData.starterLadderJson ?? input.ladderData.ladderJson ?? null,
+        answer_program_json: input.ladderData.answerProgramJson ?? input.ladderData.answerLadderJson ?? null,
         test_cases: input.ladderData.testCases ?? [],
       });
       if (ladErr) throw ladErr;
@@ -427,8 +425,10 @@ export async function updateQuestion(id: string, input: {
           ladder_json: input.ladderData.ladderJson,
           expected_output: input.ladderData.expectedOutput,
           answer_ladder_json: input.ladderData.answerLadderJson,
-          program_id: input.ladderData.programId ?? null,
-          challenge_type: input.ladderData.challengeType ?? 'modify',
+          challenge_type: input.ladderData.challengeType ?? null,
+          master_program_id: input.ladderData.masterProgramId ?? null,
+          starter_ladder_json: input.ladderData.starterLadderJson ?? input.ladderData.ladderJson ?? null,
+          answer_program_json: input.ladderData.answerProgramJson ?? input.ladderData.answerLadderJson ?? null,
           test_cases: input.ladderData.testCases ?? [],
         });
       if (error) throw error;
@@ -482,9 +482,6 @@ export async function duplicateQuestion(id: string): Promise<void> {
       ladder_json: ladder.ladder_json,
       expected_output: ladder.expected_output,
       answer_ladder_json: ladder.answer_ladder_json,
-      program_id: ladder.program_id ?? null,
-      challenge_type: ladder.challenge_type ?? 'modify',
-      test_cases: ladder.test_cases ?? [],
     });
   }
 }
@@ -497,152 +494,6 @@ export async function archiveQuestion(id: string, archived: boolean): Promise<vo
 export async function deleteQuestion(id: string): Promise<void> {
   const { error } = await supabase.from('questions').delete().eq('id', id);
   if (error) throw error;
-}
-
-// ============================================================
-// PLC Program Library (Master Programs)
-// ============================================================
-// A Master Program is built once in the Ladder Editor/Simulator and can
-// then back many Ladder PLC questions (ladder_questions.program_id).
-// See spec section 2 ("1 Master Program = bisa memiliki banyak soal").
-
-interface PlcProgramRow {
-  id: string;
-  teacher_id: string;
-  name: string;
-  description: string | null;
-  program_json: string;
-  created_at: string;
-  updated_at: string;
-}
-
-function mapPlcProgram(row: PlcProgramRow, questionCount?: number): PlcProgram {
-  return {
-    id: row.id,
-    teacherId: row.teacher_id,
-    name: row.name,
-    description: row.description,
-    programJson: row.program_json,
-    questionCount,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-/** Lists every Master Program in the teacher's library, each annotated
- * with how many questions currently reference it (for a "Kontrol Motor
- * Dasar · 3 soal" style list — spec section 12, step 5). */
-export async function fetchPlcPrograms(): Promise<PlcProgram[]> {
-  const tid = getTeacherId();
-  const { data: programs, error } = await supabase
-    .from('plc_programs')
-    .select('*')
-    .eq('teacher_id', tid)
-    .order('updated_at', { ascending: false });
-  if (error) throw toFriendlyError(error, 'Failed to load PLC program library');
-  const rows = (programs ?? []) as PlcProgramRow[];
-  if (rows.length === 0) return [];
-
-  const { data: counts } = await supabase
-    .from('ladder_questions')
-    .select('program_id')
-    .in('program_id', rows.map((r) => r.id));
-  const countByProgram = new Map<string, number>();
-  for (const row of (counts ?? []) as Array<{ program_id: string | null }>) {
-    if (!row.program_id) continue;
-    countByProgram.set(row.program_id, (countByProgram.get(row.program_id) ?? 0) + 1);
-  }
-
-  return rows.map((r) => mapPlcProgram(r, countByProgram.get(r.id) ?? 0));
-}
-
-export async function fetchPlcProgram(id: string): Promise<PlcProgram | null> {
-  const { data, error } = await supabase.from('plc_programs').select('*').eq('id', id).maybeSingle();
-  if (error) throw toFriendlyError(error, 'Failed to load PLC program');
-  return data ? mapPlcProgram(data as PlcProgramRow) : null;
-}
-
-/** Saves a program built in the Ladder Editor as a new Master Program —
- * this is what the teacher's "Simpan Program" button (spec section 12,
- * step 4) calls. `programJson` is the same JSON-encoded LadderProject the
- * Simulator already exports (exportToLadderJson.ts). */
-export async function createPlcProgram(input: {
-  name: string;
-  description?: string | null;
-  programJson: string;
-}): Promise<PlcProgram> {
-  const tid = getTeacherId();
-  const { data, error } = await supabase
-    .from('plc_programs')
-    .insert({
-      teacher_id: tid,
-      name: input.name,
-      description: input.description ?? null,
-      program_json: input.programJson,
-    })
-    .select()
-    .single();
-  if (error) throw toFriendlyError(error, 'Failed to save PLC program');
-  return mapPlcProgram(data as PlcProgramRow, 0);
-}
-
-export async function updatePlcProgram(id: string, input: Partial<{
-  name: string;
-  description: string | null;
-  programJson: string;
-}>): Promise<void> {
-  const update: Record<string, unknown> = {};
-  if (input.name !== undefined) update.name = input.name;
-  if (input.description !== undefined) update.description = input.description;
-  if (input.programJson !== undefined) update.program_json = input.programJson;
-  if (Object.keys(update).length === 0) return;
-  const { error } = await supabase.from('plc_programs').update(update).eq('id', id);
-  if (error) throw toFriendlyError(error, 'Failed to update PLC program');
-}
-
-/** Deleting a Master Program does not delete the questions built from it
- * — ladder_questions.program_id just goes NULL (ON DELETE SET NULL), so
- * existing questions and their saved snapshots/test cases keep working. */
-export async function deletePlcProgram(id: string): Promise<void> {
-  const { error } = await supabase.from('plc_programs').delete().eq('id', id);
-  if (error) throw toFriendlyError(error, 'Failed to delete PLC program');
-}
-
-/** Lists every question ("Soal 1", "Soal 2", ...) built from one Master
- * Program — spec section 2's "PLC Program Library" tree view. */
-export async function fetchQuestionsByProgramId(programId: string, archived = false): Promise<Question[]> {
-  const tid = getTeacherId();
-  const { data: ladders, error: ladErr } = await supabase
-    .from('ladder_questions')
-    .select('question_id')
-    .eq('program_id', programId);
-  if (ladErr) throw toFriendlyError(ladErr, 'Failed to load questions for this program');
-  const questionIds = ((ladders ?? []) as Array<{ question_id: string }>).map((r) => r.question_id);
-  if (questionIds.length === 0) return [];
-
-  const { data: questions, error } = await supabase
-    .from('questions')
-    .select('*')
-    .eq('teacher_id', tid)
-    .eq('archived', archived)
-    .in('id', questionIds);
-  if (error) throw toFriendlyError(error, 'Failed to load questions for this program');
-  const qRows = (questions ?? []) as QuestionRow[];
-  if (qRows.length === 0) return [];
-
-  const ids = qRows.map((q) => q.id);
-  const [{ data: opts }, { data: imgs }, { data: allLadders }] = await Promise.all([
-    supabase.from('question_options').select('*').in('question_id', ids),
-    supabase.from('question_images').select('*').in('question_id', ids),
-    supabase.from('ladder_questions').select('*').in('question_id', ids),
-  ]);
-
-  return qRows.map((q) => {
-    const qOptions = (opts as OptionRow[] | null)?.filter((o) => o.question_id === q.id) ?? [];
-    const qImages = (imgs as ImageRow[] | null)?.filter((i) => i.question_id === q.id) ?? [];
-    const qLadder = (allLadders as LadderRow[] | null)?.find((l) => l.question_id === q.id) ?? null;
-    return mapQuestion(q, qOptions, qImages, qLadder);
-  });
 }
 
 export async function fetchQuestionsBySetId(setId: string, archived = false): Promise<Question[]> {
