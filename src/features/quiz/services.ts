@@ -2,7 +2,7 @@ import { supabase } from '@/services/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import type {
   OfficialQuiz, QuizQuestion, ExamInfo, ExamAttempt,
-  PracticeAttempt, LeaderboardEntry, StudentProgress, QuizOption,
+  PracticeAttempt, LeaderboardEntry, StudentProgress, QuizOption, LadderTestCase,
 } from './types';
 
 function getStudentId(): string {
@@ -206,7 +206,7 @@ export async function findExamByCode(code: string): Promise<ExamInfo | null> {
         masterProgramId: snap.ladderData?.masterProgramId ?? null,
         starterProgramJson: snap.ladderData?.starterLadderJson ?? snap.ladderData?.ladderJson ?? null,
         answerProgramJson: snap.ladderData?.answerProgramJson ?? snap.ladderData?.answerLadderJson ?? null,
-        testCases: Array.isArray(snap.ladderData?.testCases) ? snap.ladderData?.testCases : [],
+        testCases: Array.isArray(snap.ladderData?.testCases) ? (snap.ladderData.testCases as LadderTestCase[]) : [],
       });
     }
   } else if (questionIds.length > 0) {
