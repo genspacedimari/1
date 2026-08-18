@@ -63,12 +63,12 @@ function readAddress(snapshot: ReturnType<PlcRuntime['getSnapshot']>, address: s
   if (type === 'TIM') {
     const timer = snapshot.state.timers[number];
     if (!timer) return false;
-    return suffix === 'DN' ? !!timer.done : (timer.valueMs > 0);
+    return suffix === 'DN' ? !!timer.done : (timer.accumulatedMs > 0);
   }
   if (type === 'CTU' || type === 'CTD') {
     const counter = snapshot.state.counters[number];
     if (!counter) return false;
-    return suffix === 'DN' ? !!counter.done : counter.value > 0;
+    return suffix === 'DN' ? !!counter.done : counter.accumulatedCount > 0;
   }
   return false;
 }
@@ -119,7 +119,7 @@ export async function gradeLadderProgram(
         const timer = snapshot.state.timers[timerNumber];
         if (!timer) return false;
         if (expectation.done !== undefined && timer.done !== expectation.done) return false;
-        if (expectation.valueMsAtLeast !== undefined && timer.valueMs < expectation.valueMsAtLeast) return false;
+        if (expectation.valueMsAtLeast !== undefined && timer.accumulatedMs < expectation.valueMsAtLeast) return false;
         return true;
       });
       const countersOk = Object.entries(testCase.expectedCounters ?? {}).every(([address, expectation]) => {
@@ -127,7 +127,7 @@ export async function gradeLadderProgram(
         const counter = snapshot.state.counters[number];
         if (!counter) return false;
         if (expectation.done !== undefined && counter.done !== expectation.done) return false;
-        if (expectation.valueAtLeast !== undefined && counter.value < expectation.valueAtLeast) return false;
+        if (expectation.valueAtLeast !== undefined && counter.accumulatedCount < expectation.valueAtLeast) return false;
         return true;
       });
 
