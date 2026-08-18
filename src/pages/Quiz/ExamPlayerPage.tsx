@@ -10,6 +10,7 @@ import { useAuthStore } from '@/stores/authStore';
 import * as svc from '@/features/quiz/services';
 import { PALETTE_COLORS, type QuizQuestion } from '@/features/quiz/types';
 import { cn } from '@/utils/cn';
+import { LadderStudentAnswerPanel } from '@/features/plc-challenges/LadderStudentAnswerPanel';
 
 export default function ExamPlayerPage() {
   const navigate = useNavigate();
@@ -311,36 +312,11 @@ export default function ExamPlayerPage() {
 
           {/* Ladder question */}
           {currentQ.type === 'ladder' && (
-            <Card>
-              <CardContent className="space-y-3 p-5">
-                <p className="text-xs font-medium text-muted-foreground">Ladder Mode: {currentQ.ladderMode?.replace('_', ' ')}</p>
-                {currentQ.ladderJson && (
-                  <details className="rounded-xl border border-border p-3 dark:border-border-dark">
-                    <summary className="cursor-pointer text-sm font-medium">View reference ladder</summary>
-                    <pre className="mt-2 max-h-40 overflow-auto text-xs">{currentQ.ladderJson.slice(0, 500)}</pre>
-                  </details>
-                )}
-                {currentQ.expectedOutput && (
-                  <div className="rounded-xl bg-primary/5 p-3 dark:bg-primary/10">
-                    <p className="text-xs font-medium text-primary">Expected Output</p>
-                    <p className="mt-1 text-sm">{currentQ.expectedOutput}</p>
-                  </div>
-                )}
-                <textarea
-                  value={(answers[currentQ.id] as string) ?? ''}
-                  onChange={(e) => handleAnswer(e.target.value)}
-                  rows={8}
-                  className="w-full rounded-2xl border border-border bg-surface px-4 py-3 font-mono text-xs outline-none focus:border-primary dark:border-border-dark dark:bg-surface-dark"
-                  placeholder="Paste your ladder JSON answer here..."
-                />
-                <button
-                  onClick={() => navigate('/simulator')}
-                  className="text-sm font-medium text-primary"
-                >
-                  Open Ladder Editor to build your answer
-                </button>
-              </CardContent>
-            </Card>
+            <LadderStudentAnswerPanel
+              question={currentQ}
+              value={(answers[currentQ.id] as string) ?? currentQ.starterProgramJson ?? null}
+              onChange={(json) => handleAnswer(json)}
+            />
           )}
         </div>
       </div>
