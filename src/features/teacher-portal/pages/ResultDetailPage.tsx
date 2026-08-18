@@ -4,6 +4,8 @@ import { ArrowLeft, Clock, Award, Mail, CircleCheck as CheckCircle2, Circle as X
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useTeacherStore } from '../store';
+import { LadderEditorScreen } from '@/features/plc-simulator/components/LadderEditorScreen';
+import { importFromLadderJson } from '@/simulator/editor/importFromLadderJson';
 import type { ResultDetail } from '../types';
 
 export function ResultDetailPage() {
@@ -116,14 +118,18 @@ export function ResultDetailPage() {
                     </div>
 
                     {q.ladderJson && (
-                      <div className="rounded-xl border border-border p-3 dark:border-border-dark">
-                        <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground"><FileText size={12} /> Student Ladder Submission</p>
-                        <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-muted/30 p-2 text-xs dark:bg-white/5">
-                          {(() => {
-                            try { return JSON.stringify(JSON.parse(q.ladderJson!), null, 2); }
-                            catch { return q.ladderJson; }
-                          })()}
-                        </pre>
+                      <div className="overflow-hidden rounded-xl border border-border dark:border-border-dark">
+                        <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs font-medium text-muted-foreground dark:border-border-dark">
+                          <FileText size={12} /> Student Ladder Submission · jalankan dan review realtime
+                        </div>
+                        {(() => {
+                          try {
+                            const project = importFromLadderJson(JSON.parse(q.ladderJson!));
+                            return <LadderEditorScreen initialProject={project} saveLabel="Simpan Review" />;
+                          } catch {
+                            return <p className="p-4 text-xs text-red-500">Program siswa tidak valid.</p>;
+                          }
+                        })()}
                       </div>
                     )}
                   </div>
