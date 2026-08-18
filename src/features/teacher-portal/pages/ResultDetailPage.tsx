@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useTeacherStore } from '../store';
 import { LadderEditorScreen } from '@/features/plc-simulator/components/LadderEditorScreen';
-import { importFromLadderJson } from '@/simulator/editor/importFromLadderJson';
+import type { LadderProject } from '@/simulator/types/ladder';
 import type { ResultDetail } from '../types';
 
 export function ResultDetailPage() {
@@ -124,8 +124,9 @@ export function ResultDetailPage() {
                         </div>
                         {(() => {
                           try {
-                            const project = importFromLadderJson(JSON.parse(q.ladderJson!));
-                            return <LadderEditorScreen initialProject={project} saveLabel="Simpan Review" />;
+                            const parsed = JSON.parse(q.ladderJson!) as LadderProject;
+                            if (!parsed || !Array.isArray(parsed.rungs) || !parsed.meta) throw new Error('Invalid ladder project');
+                            return <LadderEditorScreen initialProject={parsed} saveLabel="Simpan Review" />;
                           } catch {
                             return <p className="p-4 text-xs text-red-500">Program siswa tidak valid.</p>;
                           }
