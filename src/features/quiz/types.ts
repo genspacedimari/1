@@ -5,9 +5,22 @@ export type QuizCategory =
 
 export type QuestionType = 'multiple_choice' | 'image' | 'ladder';
 export type LadderMode = 'build' | 'complete' | 'find_error' | 'predict_output' | 'choose_correct';
+export type LadderChallengeType = 'modify' | 'build' | 'debug';
 export type AttemptStatus = 'in_progress' | 'completed' | 'abandoned';
 export type LeaderboardScope = 'class' | 'weekly' | 'monthly' | 'global' | 'school';
 export type ExamVisibility = 'school' | 'selected_class';
+
+export interface LadderTestCase {
+  id: string;
+  name: string;
+  durationMs: number;
+  weight: number;
+  inputs: Record<string, boolean>;
+  expectedOutputs: Record<string, boolean>;
+  expectedMemory?: Record<string, boolean>;
+  expectedTimers?: Record<string, { done?: boolean; valueMsAtLeast?: number }>;
+  expectedCounters?: Record<string, { done?: boolean; valueAtLeast?: number }>;
+}
 
 export interface StudentClassInfo {
   id: string;
@@ -51,9 +64,14 @@ export interface QuizQuestion {
   options: QuizOption[];
   imageUrls: string[];
   ladderMode?: LadderMode;
+  ladderChallengeType?: LadderChallengeType;
   ladderJson?: string | null;
   expectedOutput?: string | null;
   answerLadderJson?: string | null;
+  masterProgramId?: string | null;
+  starterProgramJson?: string | null;
+  answerProgramJson?: string | null;
+  testCases?: LadderTestCase[];
 }
 
 export interface OfficialQuiz {
