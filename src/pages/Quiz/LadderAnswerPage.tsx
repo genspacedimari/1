@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Play } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Play } from 'lucide-react';
 import { useQuizStore } from '@/features/quiz/store';
 import { LadderEditorScreen } from '@/features/plc-simulator/components/LadderEditorScreen';
 import { gradeLadderProgram } from '@/features/quiz/ladderGrading';
@@ -21,6 +21,7 @@ export default function LadderAnswerPage() {
   const activeExam = useQuizStore((s) => s.activeExam);
   const answers = useQuizStore((s) => s.answers);
   const answerQuestion = useQuizStore((s) => s.answerQuestion);
+  const setCurrentQuestion = useQuizStore((s) => s.setCurrentQuestion);
 
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<{ passed: number; total: number; percent: number; failed: string[] } | null>(null);
@@ -30,6 +31,16 @@ export default function LadderAnswerPage() {
     () => activeExam?.questions.find((q) => q.id === questionId) ?? null,
     [activeExam, questionId],
   );
+
+  // Index within the exam — drives the "Soal Berikutnya" step and lets us
+  // jump straight to the next question's editor when it's also a ladder
+  // question, instead of bouncing back through the player.
+  const questionIndex = useMemo(
+    () => activeExam?.questions.findIndex((q) => q.id === questionId) ?? -1,
+    [activeExam, questionId],
+  );
+  const nextQuestion = questionIndex >= 0 ? activeExam?.questions[questionIndex + 1] ?? null : null;
+  const isLastQuestion = questionIndex >= 0 && !!activeExam && questionIndex === activeExam.questions.length - 1;
 
   const initialJson = (answers[questionId ?? ''] as string | undefined) ?? question?.starterProgramJson ?? null;
   const project = useMemo((): LadderProject | null => {
@@ -68,6 +79,20 @@ export default function LadderAnswerPage() {
     answerQuestion(question.id, ladderJson);
     setJustApplied(true);
     setTimeout(() => setJustApplied(false), 2000);
+  };
+
+  // Apply → Next: jump straight into the next ladder question's editor, or
+  // back to the player (landing on that question) if the next one isn't a
+  // ladder type — or if this was the last question.
+  const handleNext = () => {
+    if (questionIndex >= 0 && nextQuestion) setCurrentQuestion(questionIndex + 1);
+    if (nextQuestion?.type === 'ladder') {
+      navigate(`/quiz/exam/ladder-answer/${nextQuestion.id}`, { replace: true });
+    } else {
+      // Next question isn't a ladder type, or this was the last question —
+      // either way, back to the player (Finish lives there).
+      navigate('/quiz/exam/player');
+    }
   };
 
   const handleTest = async () => {
@@ -118,6 +143,14 @@ export default function LadderAnswerPage() {
               <Play size={13} /> {testing ? 'Testing...' : 'Test Program'}
             </button>
           )}
+          <button
+            onClick={handleNext}
+            disabled={!currentDraft}
+            title={!currentDraft ? 'Terapkan jawaban dulu sebelum lanjut' : undefined}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 10, border: 'none', background: '#F26B3A', color: '#fff', padding: '8px 14px', fontFamily: 'Inter', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: !currentDraft ? 0.5 : 1 }}
+          >
+            {isLastQuestion ? 'Selesai' : 'Soal Berikutnya'} <ArrowRight size={13} />
+          </button>
         </div>
       </div>
 
