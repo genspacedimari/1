@@ -62,7 +62,7 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
   const [savingProgram, setSavingProgram] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ passed: number; total: number; percent: number } | null>(null);
-  const [showAnswerEditor, setShowAnswerEditor] = useState(false);
+  const [showAnswerEditor, setShowAnswerEditor] = useState(true);
   const [showMasterPicker, setShowMasterPicker] = useState(false);
 
   // Which Simulator project the answer was imported from — for display only,
@@ -126,7 +126,9 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
       starterProgramJson: value.challengeType === 'build' ? null : json,
     });
     setImportedFromLabel(label);
-    setShowAnswerEditor(false);
+    // Show the imported program's canvas right away — the teacher should
+    // see it land as the Jawaban Benar before touching anything.
+    setShowAnswerEditor(true);
   };
 
   const handleImportFromSimulator = (project: PlcProject) => {
@@ -239,7 +241,7 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
 
         {/* STEP 1 — Sumber program */}
         <div className="space-y-3">
-          <StepHeader step={1} title="Ambil Program" done={hasAnswer} subtitle="Import dari Simulator, atau pakai ulang Master Program yang sudah pernah disimpan." />
+          <StepHeader step={1} title="Import Program dari Simulator" done={hasAnswer} subtitle="Import dari Simulator, atau pakai ulang Master Program yang sudah pernah disimpan." />
 
           {!hasAnswer && (
             <div className="ml-10 flex flex-wrap gap-2">
@@ -249,28 +251,6 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
               <Button variant="outline" onClick={() => { setShowMasterPicker((v) => !v); loadPrograms(); }} disabled={disabled}>
                 <FolderOpen size={14} /> Pakai Master Program Tersimpan
               </Button>
-            </div>
-          )}
-
-          {hasAnswer && (
-            <div className="ml-10 rounded-2xl bg-primary/5 px-4 py-3 text-xs dark:bg-primary/10">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p>
-                  <span className="font-semibold text-primary">
-                    {linkedMasterProgram ? linkedMasterProgram.name : importedFromLabel ?? 'Program'}
-                  </span>{' '}
-                  siap dipakai sebagai <span className="font-semibold">Jawaban Benar</span>.
-                  {linkedMasterProgram && <> Terhubung ke Master Program — 1 program ini bisa dipakai untuk beberapa soal.</>}
-                </p>
-                <div className="flex shrink-0 gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setImportDialogOpen(true)} disabled={disabled}>
-                    <Download size={13} /> Ganti Program
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => { setShowMasterPicker((v) => !v); loadPrograms(); }} disabled={disabled}>
-                    <FolderOpen size={13} /> Master Lain
-                  </Button>
-                </div>
-              </div>
             </div>
           )}
 
@@ -298,30 +278,58 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
           )}
 
           {hasAnswer && (
-            <div className="ml-10">
-              <button
-                onClick={() => setShowAnswerEditor((v) => !v)}
-                className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
-              >
-                <ChevronDown size={13} className={`transition-transform ${showAnswerEditor ? 'rotate-180' : ''}`} />
-                {showAnswerEditor ? 'Sembunyikan Jawaban Benar' : 'Lihat / halus-kan Jawaban Benar'}
-              </button>
-              {showAnswerEditor && (
-                <div className="mt-2 overflow-hidden rounded-2xl border border-border dark:border-border-dark">
-                  <LadderEditorScreen
-                    key={`answer:${value.answerProgramJson?.slice(0, 24) ?? 'empty'}`}
-                    initialProject={parseProject(value.answerProgramJson)}
-                    onSaveLadder={(json) => onChange({ ...value, answerProgramJson: json, baseProgramJson: json })}
-                    saveLabel="Simpan Jawaban Benar"
-                  />
+            <div className="ml-10 space-y-2">
+              <div className="rounded-2xl bg-primary/5 px-4 py-3 text-xs dark:bg-primary/10">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p>
+                    <span className="font-semibold text-primary">
+                      {linkedMasterProgram ? linkedMasterProgram.name : importedFromLabel ?? 'Program'}
+                    </span>{' '}
+                    berhasil diimpor dan otomatis jadi <span className="font-semibold">Jawaban Benar</span> — bisa dilihat di kanvas di bawah.
+                    {linkedMasterProgram && <> Terhubung ke Master Program — 1 program ini bisa dipakai untuk beberapa soal.</>}
+                  </p>
+                  <div className="flex shrink-0 gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setImportDialogOpen(true)} disabled={disabled}>
+                      <Download size={13} /> Ganti Program
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setShowMasterPicker((v) => !v); loadPrograms(); }} disabled={disabled}>
+                      <FolderOpen size={13} /> Master Lain
+                    </Button>
+                  </div>
                 </div>
-              )}
+              </div>
+
+              {/* Canvas showing the imported program as the Jawaban Benar — visible
+                  right away so the teacher can confirm what came in before editing. */}
+              <div>
+                <button
+                  onClick={() => setShowAnswerEditor((v) => !v)}
+                  className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                >
+                  <ChevronDown size={13} className={`transition-transform ${showAnswerEditor ? 'rotate-180' : ''}`} />
+                  {showAnswerEditor ? 'Sembunyikan Kanvas Jawaban Benar' : 'Tampilkan Kanvas Jawaban Benar'}
+                </button>
+                {showAnswerEditor && (
+                  <div className="mt-2 overflow-hidden rounded-2xl border border-border dark:border-border-dark">
+                    <LadderEditorScreen
+                      key={`answer:${value.answerProgramJson?.slice(0, 24) ?? 'empty'}`}
+                      initialProject={parseProject(value.answerProgramJson)}
+                      onSaveLadder={(json) => onChange({ ...value, answerProgramJson: json, baseProgramJson: json })}
+                      saveLabel="Simpan Jawaban Benar"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <Button size="sm" onClick={() => document.getElementById('ladder-step-2')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+                Lanjut: Edit Jadi Soal <ChevronDown size={13} className="-rotate-90" />
+              </Button>
             </div>
           )}
         </div>
 
         {/* STEP 2 — Jenis soal & edit jadi soal */}
-        <div className="space-y-3 border-t border-border pt-5 dark:border-border-dark">
+        <div id="ladder-step-2" className="space-y-3 border-t border-border pt-5 dark:border-border-dark">
           <StepHeader
             step={2}
             title="Edit Jadi Soal"
