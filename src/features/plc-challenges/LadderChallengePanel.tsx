@@ -7,6 +7,7 @@ import { LadderEditorScreen } from '@/features/plc-simulator/components/LadderEd
 import { createMasterProgram, fetchMasterPrograms, updateMasterProgram } from './services';
 import type { MasterProgram, LadderChallengeDraft } from './types';
 import type { LadderProject } from '@/simulator/types/ladder';
+import { importFromGridJson } from '@/simulator/editor/importFromGridJson';
 import { createTestCase } from './types';
 import type { LadderChallengeType, LadderTestCase } from '@/features/quiz/types';
 import { gradeLadderProgram } from '@/features/quiz/ladderGrading';
@@ -77,7 +78,21 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
   // Program) as the correct answer. A clone becomes the editable starter —
   // the teacher then edits that copy (change addresses, delete components)
   // to turn it into the actual question, without touching the answer.
-  const applyImportedLadder = (json: string, label: string) => {
+  //
+  // The real Simulator (where projects are built) saves ladders in its own
+  // row/link grid format — a different shape from the graph format this
+  // Challenge editor and the grading engine speak. importFromGridJson
+  // converts it; if the JSON is already graph format (e.g. re-importing a
+  // Master Program saved from this panel), the conversion is skipped.
+  const applyImportedLadder = (rawJson: string, label: string) => {
+    let json = rawJson;
+    const converted = importFromGridJson(rawJson, label);
+    if (converted) {
+      json = JSON.stringify(converted.project);
+      if (converted.warnings.length) {
+        alert(`Program berhasil diimpor, tapi ada bagian yang tidak sepenuhnya didukung:\n\n${converted.warnings.join('\n')}`);
+      }
+    }
     onChange({
       ...value,
       baseProgramJson: json,
