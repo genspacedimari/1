@@ -91,7 +91,7 @@ function convertRung(gridRung: GridRung, rungIndex: number, warnings: string[]):
         elements.push(el);
         if (prevId !== null && prevCol === c - 1) {
           const prevEl = elements.find((e) => e.id === prevId)!;
-          prevEl.connectsTo.push(id);
+          (prevEl.connectsTo ??= []).push(id);
         }
         prevId = id;
         prevCol = c;
@@ -114,7 +114,9 @@ function convertRung(gridRung: GridRung, rungIndex: number, warnings: string[]):
   const byId = new Map(elements.map((e) => [e.id, e]));
   const connect = (fromId: string, toId: string) => {
     const from = byId.get(fromId);
-    if (from && !from.connectsTo.includes(toId)) from.connectsTo.push(toId);
+    if (!from) return;
+    const list = (from.connectsTo ??= []);
+    if (!list.includes(toId)) list.push(toId);
   };
 
   for (const link of gridRung.links ?? []) {
