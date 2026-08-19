@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, Save, Play, Trash2, RefreshCw, Download, X, FolderOpen } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, Save, Play, Trash2, RefreshCw, Download, X, FolderOpen, CheckCircle2, PencilLine, Copy, ChevronDown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LadderEditorScreen } from '@/features/plc-simulator/components/LadderEditorScreen';
@@ -20,7 +20,11 @@ interface Props {
   disabled?: boolean;
 }
 
-type EditorTab = 'starter' | 'answer';
+const CHALLENGE_TYPE_LABEL: Record<LadderChallengeType, string> = {
+  modify: 'Modifikasi Program',
+  build: 'Buat Program dari Instruksi',
+  debug: 'Debug / Perbaiki Program',
+};
 
 function parseProject(json: string | null): LadderProject | null {
   if (!json) return null;
@@ -32,15 +36,34 @@ function parseProject(json: string | null): LadderProject | null {
   }
 }
 
+function StepHeader({ step, title, done, subtitle }: { step: number; title: string; done?: boolean; subtitle?: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <span
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+          done ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-primary/10 text-primary'
+        }`}
+      >
+        {done ? <CheckCircle2 size={16} /> : step}
+      </span>
+      <div>
+        <h3 className="text-sm font-semibold leading-none">{title}</h3>
+        {subtitle && <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>}
+      </div>
+    </div>
+  );
+}
+
 export function LadderChallengePanel({ value, onChange, disabled = false }: Props) {
+  const navigate = useNavigate();
   const [programs, setPrograms] = useState<MasterProgram[]>([]);
-  const [editorTab, setEditorTab] = useState<EditorTab>('starter');
-  const [editorOpen, setEditorOpen] = useState(true);
   const [programName, setProgramName] = useState('');
   const [programDescription, setProgramDescription] = useState('');
   const [savingProgram, setSavingProgram] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ passed: number; total: number; percent: number } | null>(null);
+  const [showAnswerEditor, setShowAnswerEditor] = useState(false);
+  const [showMasterPicker, setShowMasterPicker] = useState(false);
 
   // Which Simulator project the answer was imported from — for display only,
   // not persisted (a page reload loses the label, not the ladder itself).
@@ -52,8 +75,11 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
   const simulatorLoading = useProjectStore((s) => s.loading);
   const loadSimulatorProjects = useProjectStore((s) => s.loadProjects);
 
-  const activeJson = editorTab === 'starter' ? value.starterProgramJson : value.answerProgramJson;
-  const activeProject = useMemo(() => parseProject(activeJson), [activeJson]);
+  const hasAnswer = !!value.answerProgramJson;
+  const linkedMasterProgram = useMemo(
+    () => programs.find((p) => p.id === value.masterProgramId) ?? null,
+    [programs, value.masterProgramId],
+  );
 
   const loadPrograms = async () => {
     try {
@@ -100,12 +126,12 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
       starterProgramJson: value.challengeType === 'build' ? null : json,
     });
     setImportedFromLabel(label);
-    setEditorTab(value.challengeType === 'build' ? 'answer' : 'starter');
-    setEditorOpen(true);
+    setShowAnswerEditor(false);
   };
 
   const handleImportFromSimulator = (project: PlcProject) => {
     applyImportedLadder(project.ladderJson, project.name);
+    onChange({ ...value, masterProgramId: null });
     setProgramName(project.name);
     setProgramDescription(project.description);
     setImportDialogOpen(false);
@@ -131,18 +157,18 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
 
   const handleSelectProgram = (id: string) => {
     const program = programs.find((item) => item.id === id);
-    if (!program) {
-      onChange({ ...value, masterProgramId: null });
-      return;
-    }
+    if (!program) return;
     onChange({ ...value, masterProgramId: program.id });
     applyImportedLadder(program.ladderJson, program.name);
+    setProgramName(program.name);
+    setProgramDescription(program.description);
+    setShowMasterPicker(false);
   };
 
   const saveAsMasterProgram = async () => {
     const json = value.answerProgramJson ?? value.baseProgramJson;
     if (!json || !programName.trim()) {
-      alert('Nama Master Program dan Jawaban Benar wajib diisi (import atau buat dulu di tab Jawaban Benar).');
+      alert('Nama Master Program dan Jawaban Benar wajib diisi (import atau buat dulu di Step 1).');
       return;
     }
     setSavingProgram(true);
@@ -167,12 +193,13 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
     }
   };
 
-  const saveEditor = (json: string) => {
-    if (editorTab === 'starter') {
-      onChange({ ...value, starterProgramJson: json });
-      return;
-    }
-    onChange({ ...value, answerProgramJson: json, baseProgramJson: json });
+  // Lets a teacher reuse one saved Master Program across several
+  // questions: leaves this soal untouched, jumps to a brand-new
+  // Question Editor pre-linked to the same program so the answer
+  // is ready instantly — only "Edit jadi Soal" is left to do.
+  const startNewQuestionFromProgram = () => {
+    if (!value.masterProgramId) return;
+    navigate(`/teacher/questions/new?type=ladder&masterProgramId=${value.masterProgramId}`);
   };
 
   const runTestAnswer = async () => {
@@ -202,30 +229,106 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
 
   return (
     <Card>
-      <CardContent className="space-y-5 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="font-display text-base font-semibold">Visual Ladder Challenge</h2>
-            <p className="text-xs text-muted-foreground">Import program dari Simulator sebagai jawaban benar, lalu edit salinannya jadi soal.</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)} disabled={disabled}>
-              <Download size={14} /> Import dari Simulator
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => { loadPrograms(); }} disabled={disabled}>
-              <RefreshCw size={14} /> Refresh
-            </Button>
-          </div>
+      <CardContent className="space-y-6 p-5">
+        <div>
+          <h2 className="font-display text-base font-semibold">Visual Ladder Challenge</h2>
+          <p className="text-xs text-muted-foreground">
+            Import program dari Simulator → otomatis jadi Jawaban Benar → edit salinannya jadi Soal → beri judul → simpan.
+          </p>
         </div>
 
-        {importedFromLabel && (
-          <div className="rounded-2xl bg-primary/5 px-4 py-2.5 text-xs dark:bg-primary/10">
-            <span className="font-semibold text-primary">Diimpor dari Simulator:</span> {importedFromLabel} — konten ini otomatis jadi <span className="font-semibold">Jawaban Benar</span>. Edit tab "Program Awal (Soal)" untuk mengubah alamat / menghapus komponen sebagai soal.
-          </div>
-        )}
+        {/* STEP 1 — Sumber program */}
+        <div className="space-y-3">
+          <StepHeader step={1} title="Ambil Program" done={hasAnswer} subtitle="Import dari Simulator, atau pakai ulang Master Program yang sudah pernah disimpan." />
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
+          {!hasAnswer && (
+            <div className="ml-10 flex flex-wrap gap-2">
+              <Button onClick={() => setImportDialogOpen(true)} disabled={disabled}>
+                <Download size={14} /> Import dari Simulator
+              </Button>
+              <Button variant="outline" onClick={() => { setShowMasterPicker((v) => !v); loadPrograms(); }} disabled={disabled}>
+                <FolderOpen size={14} /> Pakai Master Program Tersimpan
+              </Button>
+            </div>
+          )}
+
+          {hasAnswer && (
+            <div className="ml-10 rounded-2xl bg-primary/5 px-4 py-3 text-xs dark:bg-primary/10">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p>
+                  <span className="font-semibold text-primary">
+                    {linkedMasterProgram ? linkedMasterProgram.name : importedFromLabel ?? 'Program'}
+                  </span>{' '}
+                  siap dipakai sebagai <span className="font-semibold">Jawaban Benar</span>.
+                  {linkedMasterProgram && <> Terhubung ke Master Program — 1 program ini bisa dipakai untuk beberapa soal.</>}
+                </p>
+                <div className="flex shrink-0 gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setImportDialogOpen(true)} disabled={disabled}>
+                    <Download size={13} /> Ganti Program
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => { setShowMasterPicker((v) => !v); loadPrograms(); }} disabled={disabled}>
+                    <FolderOpen size={13} /> Master Lain
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showMasterPicker && (
+            <div className="ml-10 rounded-2xl border border-border p-3 dark:border-border-dark">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-semibold text-muted-foreground">Pilih Master Program</p>
+                <button onClick={() => { loadPrograms(); }} className="text-muted-foreground hover:text-foreground" title="Refresh"><RefreshCw size={13} /></button>
+              </div>
+              {programs.length === 0 && <p className="text-xs text-muted-foreground">Belum ada Master Program tersimpan.</p>}
+              <div className="flex flex-wrap gap-2">
+                {programs.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleSelectProgram(p.id)}
+                    className={`rounded-xl border px-3 py-2 text-left text-xs font-medium transition-colors ${
+                      value.masterProgramId === p.id ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:border-primary dark:border-border-dark'
+                    }`}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {hasAnswer && (
+            <div className="ml-10">
+              <button
+                onClick={() => setShowAnswerEditor((v) => !v)}
+                className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+              >
+                <ChevronDown size={13} className={`transition-transform ${showAnswerEditor ? 'rotate-180' : ''}`} />
+                {showAnswerEditor ? 'Sembunyikan Jawaban Benar' : 'Lihat / halus-kan Jawaban Benar'}
+              </button>
+              {showAnswerEditor && (
+                <div className="mt-2 overflow-hidden rounded-2xl border border-border dark:border-border-dark">
+                  <LadderEditorScreen
+                    key={`answer:${value.answerProgramJson?.slice(0, 24) ?? 'empty'}`}
+                    initialProject={parseProject(value.answerProgramJson)}
+                    onSaveLadder={(json) => onChange({ ...value, answerProgramJson: json, baseProgramJson: json })}
+                    saveLabel="Simpan Jawaban Benar"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* STEP 2 — Jenis soal & edit jadi soal */}
+        <div className="space-y-3 border-t border-border pt-5 dark:border-border-dark">
+          <StepHeader
+            step={2}
+            title="Edit Jadi Soal"
+            subtitle='Tentukan tipe soal, lalu ubah salinan program (alamat I/O, kontak, dsb.) — Jawaban Benar di Step 1 tidak ikut berubah.'
+          />
+
+          <div className="ml-10 max-w-sm">
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Tipe Challenge</label>
             <select
               value={value.challengeType}
@@ -233,76 +336,38 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
               className="w-full rounded-2xl border border-border bg-surface px-4 py-3 text-sm outline-none dark:border-border-dark dark:bg-surface-dark"
               disabled={disabled}
             >
-              <option value="modify">Modifikasi Program</option>
-              <option value="build">Buat Program dari Instruksi</option>
-              <option value="debug">Debug / Perbaiki Program</option>
+              {(Object.entries(CHALLENGE_TYPE_LABEL) as [LadderChallengeType, string][]).map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
             </select>
           </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Master Program (opsional, untuk dipakai ulang)</label>
-            <select
-              value={value.masterProgramId ?? ''}
-              onChange={(e) => handleSelectProgram(e.target.value)}
-              className="w-full rounded-2xl border border-border bg-surface px-4 py-3 text-sm outline-none dark:border-border-dark dark:bg-surface-dark"
-              disabled={disabled}
-            >
-              <option value="">Tidak terhubung ke Master Program</option>
-              {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-        </div>
 
-        <div className="rounded-2xl border border-border bg-muted/10 p-4 dark:border-border-dark">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex gap-2">
-              <Button variant={editorTab === 'starter' ? 'default' : 'outline'} size="sm" onClick={() => { setEditorTab('starter'); setEditorOpen(true); }}>
-                Program Awal (Soal)
-              </Button>
-              <Button variant={editorTab === 'answer' ? 'default' : 'outline'} size="sm" onClick={() => { setEditorTab('answer'); setEditorOpen(true); }}>
-                Jawaban Benar
-              </Button>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => setEditorOpen((v) => !v)}>{editorOpen ? 'Tutup Editor' : 'Buka Editor'}</Button>
-          </div>
-
-          {editorTab === 'starter' && value.challengeType === 'build' && (
-            <p className="mb-3 text-xs text-muted-foreground">Tipe "Buat Program dari Instruksi" tidak punya Program Awal — murid mulai dari kanvas kosong di Simulator.</p>
-          )}
-
-          {editorTab === 'answer' && (
-            <div className="mb-3 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-              <input value={programName} onChange={(e) => setProgramName(e.target.value)} placeholder="Nama Master Program" className="rounded-xl border border-border bg-surface px-3 py-2 text-sm dark:border-border-dark dark:bg-surface-dark" />
-              <input value={programDescription} onChange={(e) => setProgramDescription(e.target.value)} placeholder="Deskripsi program" className="rounded-xl border border-border bg-surface px-3 py-2 text-sm dark:border-border-dark dark:bg-surface-dark" />
-              <Button onClick={saveAsMasterProgram} disabled={savingProgram || !value.answerProgramJson}>
-                <Save size={14} /> {savingProgram ? 'Menyimpan...' : 'Simpan sebagai Master'}
-              </Button>
-            </div>
-          )}
-
-          {editorOpen && !(editorTab === 'starter' && value.challengeType === 'build') && (
-            <div className="overflow-hidden rounded-2xl border border-border dark:border-border-dark">
+          {value.challengeType === 'build' ? (
+            <p className="ml-10 text-xs text-muted-foreground">Tipe "Buat Program dari Instruksi" tidak punya Program Awal — murid mulai dari kanvas kosong di Simulator. Jelaskan instruksinya lewat Judul Soal di bawah.</p>
+          ) : !hasAnswer ? (
+            <p className="ml-10 text-xs text-muted-foreground">Selesaikan Step 1 (ambil program) dulu sebelum mengedit soal.</p>
+          ) : (
+            <div className="ml-10 overflow-hidden rounded-2xl border border-border dark:border-border-dark">
               <LadderEditorScreen
-                key={`${editorTab}:${activeJson?.slice(0, 24) ?? 'empty'}`}
-                initialProject={activeProject}
-                onSaveLadder={saveEditor}
-                saveLabel={editorTab === 'starter' ? 'Simpan Soal' : 'Simpan Jawaban'}
+                key={`starter:${value.starterProgramJson?.slice(0, 24) ?? 'empty'}`}
+                initialProject={parseProject(value.starterProgramJson)}
+                onSaveLadder={(json) => onChange({ ...value, starterProgramJson: json })}
+                saveLabel="Simpan Soal"
               />
             </div>
           )}
         </div>
 
-        <div>
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-semibold">Test Cases</h3>
-              <p className="text-xs text-muted-foreground">Penilaian berdasarkan behavior input → output, bukan bentuk ladder.</p>
-            </div>
+        {/* STEP 3 — Test cases */}
+        <div className="space-y-3 border-t border-border pt-5 dark:border-border-dark">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <StepHeader step={3} title="Test Case Penilaian" subtitle="Penilaian berdasarkan behavior input → output, bukan bentuk ladder." />
             <Button size="sm" variant="outline" onClick={() => onChange({ ...value, testCases: [...value.testCases, createTestCase(value.testCases.length + 1)] })}>
               <Plus size={14} /> Test Case
             </Button>
           </div>
 
-          <div className="space-y-3">
+          <div className="ml-10 space-y-3">
             {value.testCases.map((tc, index) => (
               <div key={tc.id} className="rounded-2xl border border-border p-4 dark:border-border-dark">
                 <div className="grid gap-3 md:grid-cols-[1fr_120px_100px_auto]">
@@ -328,7 +393,7 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
             ))}
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-primary/5 p-4 dark:bg-primary/10">
+          <div className="ml-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-primary/5 p-4 dark:bg-primary/10">
             <div>
               <p className="text-sm font-semibold">Test Answer</p>
               <p className="text-xs text-muted-foreground">Jalankan Jawaban Benar terhadap seluruh test case sebelum publish.</p>
@@ -340,6 +405,36 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* STEP 4 — Simpan sebagai Master Program (dipakai ulang untuk soal lain) */}
+        <div className="space-y-3 border-t border-border pt-5 dark:border-border-dark">
+          <StepHeader
+            step={4}
+            title="Simpan sebagai Master Program"
+            done={!!value.masterProgramId}
+            subtitle="Opsional — simpan Jawaban Benar sebagai Master Program supaya bisa dipakai lagi untuk soal lain (misalnya versi soal yang lebih sulit dari program yang sama)."
+          />
+          <div className="ml-10 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+            <input value={programName} onChange={(e) => setProgramName(e.target.value)} placeholder="Nama Master Program" className="rounded-xl border border-border bg-surface px-3 py-2 text-sm dark:border-border-dark dark:bg-surface-dark" disabled={disabled} />
+            <input value={programDescription} onChange={(e) => setProgramDescription(e.target.value)} placeholder="Deskripsi program" className="rounded-xl border border-border bg-surface px-3 py-2 text-sm dark:border-border-dark dark:bg-surface-dark" disabled={disabled} />
+            <Button onClick={saveAsMasterProgram} disabled={disabled || savingProgram || !value.answerProgramJson}>
+              <Save size={14} /> {savingProgram ? 'Menyimpan...' : value.masterProgramId ? 'Update Master' : 'Simpan sebagai Master'}
+            </Button>
+          </div>
+          {value.masterProgramId && (
+            <div className="ml-10">
+              <Button variant="outline" size="sm" onClick={startNewQuestionFromProgram}>
+                <Copy size={13} /> Buat Soal Lain dari Program Ini
+              </Button>
+              <p className="mt-1 text-[11px] text-muted-foreground">Membuka soal baru yang sudah terhubung ke Master Program yang sama — tinggal ulangi Step 2 (Edit Jadi Soal) dan beri Judul Soal baru.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl bg-muted/10 px-4 py-3 text-xs text-muted-foreground dark:bg-white/5">
+          <PencilLine size={13} className="mr-1 inline align-text-bottom" />
+          Langkah terakhir: isi <span className="font-semibold text-foreground">Judul Soal</span> dan detail lain di bawah, lalu tekan <span className="font-semibold text-foreground">Save</span>.
         </div>
       </CardContent>
 
