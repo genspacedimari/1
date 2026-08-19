@@ -10,6 +10,7 @@ import {
 } from '../types';
 import { cn } from '@/utils/cn';
 import { LadderChallengePanel } from '@/features/plc-challenges/LadderChallengePanel';
+import { fetchMasterPrograms } from '@/features/plc-challenges/services';
 import type { LadderChallengeDraft } from '@/features/plc-challenges/types';
 
 export function QuestionEditorPage() {
@@ -17,12 +18,14 @@ export function QuestionEditorPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const presetSetId = searchParams.get('setId');
+  const presetType = searchParams.get('type') as QuestionType | null;
+  const presetMasterProgramId = searchParams.get('masterProgramId');
   const isEdit = !!id && id !== 'new';
   const {
     categories, loadQuestions, loadCategories, createQuestion, updateQuestion,
   } = useTeacherStore();
 
-  const [type, setType] = useState<QuestionType>('multiple_choice');
+  const [type, setType] = useState<QuestionType>(presetType && presetType in QUESTION_TYPE_LABELS ? presetType : 'multiple_choice');
   const [questionText, setQuestionText] = useState('');
   const [categoryId, setCategoryId] = useState<string>('');
   const [questionSetId, setQuestionSetId] = useState<string | null>(presetSetId);
@@ -54,6 +57,24 @@ export function QuestionEditorPage() {
   useEffect(() => {
     loadCategories();
     if (!isEdit && presetSetId) setQuestionSetId(presetSetId);
+    // Coming from "Buat Soal Lain dari Program Ini" — preload the same
+    // Master Program as the answer so the teacher only has to redo Step 2
+    // (Edit Jadi Soal) and give this soal a new Judul Soal.
+    if (!isEdit && presetType === 'ladder' && presetMasterProgramId) {
+      fetchMasterPrograms().then((programs) => {
+        const program = programs.find((p) => p.id === presetMasterProgramId);
+        if (!program) return;
+        setLadderChallenge({
+          challengeType: 'modify',
+          masterProgramId: program.id,
+          baseProgramJson: program.ladderJson,
+          starterProgramJson: program.ladderJson,
+          answerProgramJson: program.ladderJson,
+          expectedOutput: null,
+          testCases: [],
+        });
+      }).catch((err) => console.error('[QUESTION_EDITOR] preload master program failed', err));
+    }
     if (isEdit) {
       loadQuestions().then(() => {
         const q = useTeacherStore.getState().questions.find((q) => q.id === id);
@@ -181,6 +202,75 @@ export function QuestionEditorPage() {
 
   const inputClass = 'w-full rounded-2xl border border-border bg-surface px-4 py-3 text-sm outline-none transition-colors focus:border-primary dark:border-border-dark dark:bg-surface-dark';
 
+  const basicFieldsCard = (
+    <Card>
+      <CardContent className="space-y-4 p-5">
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+            {type === 'ladder' ? 'Judul Soal' : 'Question Text'}
+          </label>
+          <textarea
+            value={questionText}
+            onChange={(e) => { setQuestionText(e.target.value); markDirty(); }}
+            rows={3}
+            className={inputClass}
+            placeholder={type === 'ladder' ? 'Judul dan instruksi singkat untuk murid...' : 'Enter your question...'}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Category</label>
+            <select
+              value={categoryId}
+              onChange={(e) => { setCategoryId(e.target.value); markDirty(); }}
+              className={inputClass}
+            >
+              <option value="">No category</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Difficulty</label>
+            <select
+              value={difficulty}
+              onChange={(e) => { setDifficulty(e.target.value as Difficulty); markDirty(); }}
+              className={inputClass}
+            >
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Points</label>
+          <input
+            type="number"
+            value={points}
+            onChange={(e) => { setPoints(Number(e.target.value)); markDirty(); }}
+            className={inputClass}
+            min={1}
+          />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Explanation (optional)</label>
+          <textarea
+            value={explanation}
+            onChange={(e) => { setExplanation(e.target.value); markDirty(); }}
+            rows={2}
+            className={inputClass}
+            placeholder="Explain the correct answer..."
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       {/* Header */}
@@ -221,71 +311,9 @@ export function QuestionEditorPage() {
         </CardContent>
       </Card>
 
-      {/* Basic fields */}
-      <Card>
-        <CardContent className="space-y-4 p-5">
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Question Text</label>
-            <textarea
-              value={questionText}
-              onChange={(e) => { setQuestionText(e.target.value); markDirty(); }}
-              rows={3}
-              className={inputClass}
-              placeholder="Enter your question..."
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Category</label>
-              <select
-                value={categoryId}
-                onChange={(e) => { setCategoryId(e.target.value); markDirty(); }}
-                className={inputClass}
-              >
-                <option value="">No category</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Difficulty</label>
-              <select
-                value={difficulty}
-                onChange={(e) => { setDifficulty(e.target.value as Difficulty); markDirty(); }}
-                className={inputClass}
-              >
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Points</label>
-            <input
-              type="number"
-              value={points}
-              onChange={(e) => { setPoints(Number(e.target.value)); markDirty(); }}
-              className={inputClass}
-              min={1}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Explanation (optional)</label>
-            <textarea
-              value={explanation}
-              onChange={(e) => { setExplanation(e.target.value); markDirty(); }}
-              rows={2}
-              className={inputClass}
-              placeholder="Explain the correct answer..."
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Basic fields — for ladder soal this doubles as the final "Judul Soal" step,
+          so it renders after the LadderChallengePanel below instead of before it. */}
+      {type !== 'ladder' && basicFieldsCard}
 
       {/* Multiple choice options */}
       {type === 'multiple_choice' && (
@@ -402,12 +430,16 @@ export function QuestionEditorPage() {
         </Card>
       )}
 
-      {/* Visual Ladder PLC challenge */}
+      {/* Visual Ladder PLC challenge — flow: import/pilih program → jadi
+          Jawaban Benar → edit jadi soal → (Judul Soal di bawah) → Save */}
       {type === 'ladder' && (
-        <LadderChallengePanel
-          value={ladderChallenge}
-          onChange={(next) => { setLadderChallenge(next); markDirty(); }}
-        />
+        <>
+          <LadderChallengePanel
+            value={ladderChallenge}
+            onChange={(next) => { setLadderChallenge(next); markDirty(); }}
+          />
+          {basicFieldsCard}
+        </>
       )}
     </div>
   );
