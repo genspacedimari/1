@@ -62,7 +62,7 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
   const [savingProgram, setSavingProgram] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ passed: number; total: number; percent: number } | null>(null);
-  const [showAnswerEditor, setShowAnswerEditor] = useState(true);
+  const [canvasView, setCanvasView] = useState<'answer' | 'soal' | 'hidden'>('answer');
   const [showMasterPicker, setShowMasterPicker] = useState(false);
 
   // Which Simulator project the answer was imported from — for display only,
@@ -128,7 +128,7 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
     setImportedFromLabel(label);
     // Show the imported program's canvas right away — the teacher should
     // see it land as the Jawaban Benar before touching anything.
-    setShowAnswerEditor(true);
+    setCanvasView('answer');
   };
 
   const handleImportFromSimulator = (project: PlcProject) => {
@@ -300,17 +300,20 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
               </div>
 
               {/* Canvas showing the imported program as the Jawaban Benar — visible
-                  right away so the teacher can confirm what came in before editing. */}
+                  right away so the teacher can confirm what came in before editing.
+                  Only one ladder canvas is ever mounted at a time (this one, or the
+                  "Edit Jadi Soal" one in Step 2) since the editor uses shared state
+                  internally — mounting both together would make them clash. */}
               <div>
                 <button
-                  onClick={() => setShowAnswerEditor((v) => !v)}
+                  onClick={() => setCanvasView((v) => (v === 'answer' ? 'hidden' : 'answer'))}
                   className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
                 >
-                  <ChevronDown size={13} className={`transition-transform ${showAnswerEditor ? 'rotate-180' : ''}`} />
-                  {showAnswerEditor ? 'Sembunyikan Kanvas Jawaban Benar' : 'Tampilkan Kanvas Jawaban Benar'}
+                  <ChevronDown size={13} className={`transition-transform ${canvasView === 'answer' ? 'rotate-180' : ''}`} />
+                  {canvasView === 'answer' ? 'Sembunyikan Kanvas Jawaban Benar' : 'Tampilkan Kanvas Jawaban Benar'}
                 </button>
-                {showAnswerEditor && (
-                  <div className="mt-2 overflow-hidden rounded-2xl border border-border dark:border-border-dark">
+                {canvasView === 'answer' && (
+                  <div className="mt-2 overflow-hidden rounded-2xl border border-border dark:border-border-dark" style={{ minHeight: 480 }}>
                     <LadderEditorScreen
                       key={`answer:${value.answerProgramJson?.slice(0, 24) ?? 'empty'}`}
                       initialProject={parseProject(value.answerProgramJson)}
@@ -321,7 +324,7 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
                 )}
               </div>
 
-              <Button size="sm" onClick={() => document.getElementById('ladder-step-2')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+              <Button size="sm" onClick={() => { setCanvasView('soal'); document.getElementById('ladder-step-2')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>
                 Lanjut: Edit Jadi Soal <ChevronDown size={13} className="-rotate-90" />
               </Button>
             </div>
@@ -354,8 +357,14 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
             <p className="ml-10 text-xs text-muted-foreground">Tipe "Buat Program dari Instruksi" tidak punya Program Awal — murid mulai dari kanvas kosong di Simulator. Jelaskan instruksinya lewat Judul Soal di bawah.</p>
           ) : !hasAnswer ? (
             <p className="ml-10 text-xs text-muted-foreground">Selesaikan Step 1 (ambil program) dulu sebelum mengedit soal.</p>
+          ) : canvasView !== 'soal' ? (
+            <div className="ml-10">
+              <Button size="sm" variant="outline" onClick={() => setCanvasView('soal')}>
+                <PencilLine size={13} /> Buka Kanvas Edit Soal
+              </Button>
+            </div>
           ) : (
-            <div className="ml-10 overflow-hidden rounded-2xl border border-border dark:border-border-dark">
+            <div className="ml-10 overflow-hidden rounded-2xl border border-border dark:border-border-dark" style={{ minHeight: 480 }}>
               <LadderEditorScreen
                 key={`starter:${value.starterProgramJson?.slice(0, 24) ?? 'empty'}`}
                 initialProject={parseProject(value.starterProgramJson)}
