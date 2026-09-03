@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useLadderEditorStore } from '@/stores/ladderEditorStore';
 import { usePlcStore } from '@/stores/plcStore';
@@ -195,6 +195,9 @@ function RungBlock({ rungId, isSimulating }: { rungId: string; isSimulating: boo
   }
 
   const editingElement = editing ? rung.elements[editing.elementId] : null;
+  // Wire color shared by rail + connecting lines, so contacts read as one
+  // continuous circuit instead of separate floating boxes.
+  const wireColor = `${p.railColor}66`;
 
   return (
     <div
@@ -213,17 +216,25 @@ function RungBlock({ rungId, isSimulating }: { rungId: string; isSimulating: boo
           <div
             key={row.id}
             style={{ borderLeft: `3px solid ${p.railColor}55` }}
-            className="flex items-center gap-1.5 pl-2"
+            className="flex items-center pl-2"
           >
             {row.cells.map((elId, idx) => (
-              <ElementBox
-                key={elId}
-                element={rung.elements[elId]}
-                isSimulating={isSimulating}
-                onClick={() => !isSimulating && setEditing({ elementId: elId })}
-                onDelete={() => removeCell(rungId, row.id, idx)}
-              />
+              <Fragment key={elId}>
+                {/* Wire stub before every element — fills what used to be
+                    an empty gap, so contacts read as one series circuit. */}
+                <div style={{ width: 10, height: 2, backgroundColor: wireColor, flexShrink: 0 }} />
+                <ElementBox
+                  element={rung.elements[elId]}
+                  isSimulating={isSimulating}
+                  onClick={() => !isSimulating && setEditing({ elementId: elId })}
+                  onDelete={() => removeCell(rungId, row.id, idx)}
+                />
+              </Fragment>
             ))}
+            {/* Wire continuing to the end of the row — grows to fill the
+                remaining space up to the "+" / delete-row buttons, so the
+                line never just stops mid-air. */}
+            <div style={{ flex: 1, minWidth: 10, height: 2, backgroundColor: wireColor }} />
             {!isSimulating && (
               <AddElementMenu
                 items={INPUT_ITEMS}
@@ -256,25 +267,32 @@ function RungBlock({ rungId, isSimulating }: { rungId: string; isSimulating: boo
       </div>
 
       <div
-        style={{ borderLeft: `1px solid ${p.border}` }}
-        className="flex flex-col items-center justify-center gap-1.5 pl-3"
+        style={{ borderLeft: `2px solid ${wireColor}` }}
+        className="flex flex-col items-center justify-center gap-1.5 pl-0"
       >
         {rung.outputs.map((elId, idx) => (
-          <ElementBox
-            key={elId}
-            element={rung.elements[elId]}
-            isSimulating={isSimulating}
-            onClick={() => !isSimulating && setEditing({ elementId: elId })}
-            onDelete={() => removeOutput(rungId, idx)}
-          />
+          <div key={elId} className="flex items-center">
+            {/* Wire stub bridging the column divider straight into the
+                coil — this is the piece that was missing, making the coil
+                look disconnected from the rest of the rung. */}
+            <div style={{ width: 12, height: 2, backgroundColor: wireColor, flexShrink: 0 }} />
+            <ElementBox
+              element={rung.elements[elId]}
+              isSimulating={isSimulating}
+              onClick={() => !isSimulating && setEditing({ elementId: elId })}
+              onDelete={() => removeOutput(rungId, idx)}
+            />
+          </div>
         ))}
         {!isSimulating && (
-          <AddElementMenu
-            items={OUTPUT_ITEMS}
-            allocateAddress={allocate}
-            onPick={(spec) => placeOutput(rungId, spec)}
-            title="Tambah output (coil/timer/counter)"
-          />
+          <div className="flex items-center pl-3">
+            <AddElementMenu
+              items={OUTPUT_ITEMS}
+              allocateAddress={allocate}
+              onPick={(spec) => placeOutput(rungId, spec)}
+              title="Tambah output (coil/timer/counter)"
+            />
+          </div>
         )}
       </div>
 
