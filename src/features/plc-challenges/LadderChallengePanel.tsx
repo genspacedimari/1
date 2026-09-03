@@ -91,7 +91,14 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
   // Challenge editor and the grading engine speak. importFromGridJson
   // converts it; if the JSON is already graph format (e.g. re-importing a
   // Master Program saved from this panel), the conversion is skipped.
-  const applyImportedLadder = (rawJson: string, label: string) => {
+  //
+  // IMPORTANT: this builds and returns the full next draft instead of
+  // calling onChange itself. Callers must call onChange exactly once with
+  // the result (merging in anything else like masterProgramId) — calling
+  // onChange twice in a row here previously caused the second call to
+  // overwrite the first, because both closures still saw the old `value`
+  // (React state updates are not applied synchronously mid-function).
+  const buildImportedLadder = (rawJson: string, label: string): LadderChallengeDraft => {
     let json = rawJson;
     const converted = importFromGridJson(rawJson, label);
     if (converted) {
@@ -100,7 +107,8 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
         alert(`Program berhasil diimpor, tapi ada bagian yang tidak sepenuhnya didukung:\n\n${converted.warnings.join('\n')}`);
       }
     }
-    onChange({
+    setImportedFromLabel(label);
+    return {
       ...value,
       // A fresh import always needs an editable copy ready for "Edit Jadi
       // Soal" — force out of "build" (blank-canvas) mode so the starter
@@ -109,13 +117,11 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
       baseProgramJson: json,
       answerProgramJson: json,
       starterProgramJson: json,
-    });
-    setImportedFromLabel(label);
+    };
   };
 
   const handleImportFromSimulator = (project: PlcProject) => {
-    applyImportedLadder(project.ladderJson, project.name);
-    onChange({ ...value, masterProgramId: null });
+    onChange({ ...buildImportedLadder(project.ladderJson, project.name), masterProgramId: null });
     setProgramName(project.name);
     setProgramDescription(project.description);
     setImportDialogOpen(false);
@@ -142,8 +148,7 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
   const handleSelectProgram = (id: string) => {
     const program = programs.find((item) => item.id === id);
     if (!program) return;
-    onChange({ ...value, masterProgramId: program.id });
-    applyImportedLadder(program.ladderJson, program.name);
+    onChange({ ...buildImportedLadder(program.ladderJson, program.name), masterProgramId: program.id });
     setProgramName(program.name);
     setProgramDescription(program.description);
     setShowMasterPicker(false);
