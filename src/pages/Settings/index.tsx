@@ -61,9 +61,9 @@ function RowHeader({
         <Icon size={18} strokeWidth={2.25} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium leading-tight">{label}</p>
+        <p className="break-words text-sm font-medium leading-tight">{label}</p>
         {description && (
-          <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{description}</p>
+          <p className="mt-0.5 break-words text-xs leading-snug text-muted-foreground">{description}</p>
         )}
       </div>
     </div>
@@ -105,10 +105,10 @@ function StackRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
+    <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4 lg:flex-col lg:items-stretch lg:justify-start lg:gap-3 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
       <RowHeader icon={icon} label={label} description={description} />
       {/* Child (Segmented) is stretched to the full row width on mobile. */}
-      <div className="w-full sm:w-auto sm:shrink-0 [&>*]:w-full sm:[&>*]:w-auto">{children}</div>
+      <div className="w-full min-w-0 max-w-full overflow-x-auto scrollbar-hide sm:w-auto sm:shrink-0 sm:[&>*]:w-auto lg:w-full lg:shrink [&>*]:w-full lg:[&>*]:w-full xl:w-auto xl:shrink-0 xl:[&>*]:w-auto">{children}</div>
     </div>
   );
 }
@@ -323,10 +323,10 @@ export default function SettingsPage() {
       className="mx-auto w-full max-w-4xl overflow-x-hidden pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-8"
     >
       {/* Mobile tab strip — edge-to-edge, swipeable, active tab auto-centers. */}
-      <div className="relative -mx-4 mb-3 sm:-mx-6 md:hidden">
+      <div className="relative -mx-5 mb-3 md:-mx-8 lg:hidden">
         <div
           role="tablist"
-          className="flex snap-x snap-proximity gap-2 overflow-x-auto px-4 py-1 scrollbar-hide sm:px-6"
+          className="flex snap-x snap-proximity gap-2 overflow-x-auto px-5 py-1 scrollbar-hide md:px-8"
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
           {SECTIONS.map((sec) => (
@@ -356,9 +356,9 @@ export default function SettingsPage() {
         <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-secondary to-transparent dark:from-surface-dark" />
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex gap-4 xl:gap-6">
         {/* Desktop sidebar */}
-        <div className="hidden w-56 shrink-0 md:block">
+        <div className="hidden w-48 shrink-0 lg:block xl:w-56">
           <div className="sticky top-4 flex flex-col gap-1">
             {SECTIONS.map((sec) => (
               <button
