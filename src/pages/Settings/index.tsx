@@ -45,11 +45,35 @@ const itemVar = {
   show: { opacity: 1, y: 0 },
 };
 
-/** Inline row — icon/label/description on the left, a compact control (Switch,
- * or a short 2-3 option Segmented) on the right. Stays a single line even on
- * mobile since these controls are small and don't need room to breathe. */
-function Row({
+/** Icon + label + description block, shared by Row and StackRow. */
+function RowHeader({
   icon: Icon,
+  label,
+  description,
+}: {
+  icon: typeof SettingsIcon;
+  label: string;
+  description?: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <Icon size={18} strokeWidth={2.25} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium leading-tight">{label}</p>
+        {description && (
+          <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{description}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Inline row — for Switch controls only. Label gets all remaining space
+ * (min-w-0 + flex-1) so long text wraps instead of pushing the switch off-screen. */
+function Row({
+  icon,
   label,
   description,
   children,
@@ -60,29 +84,17 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">
-      <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary sm:h-9 sm:w-9">
-          <Icon size={17} strokeWidth={2.25} />
-        </div>
-        <div className="min-w-0">
-          <p className="text-[13.5px] font-medium leading-tight sm:text-sm">{label}</p>
-          {description && <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground sm:text-xs">{description}</p>}
-        </div>
-      </div>
+    <div className="flex min-h-[60px] items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">
+      <RowHeader icon={icon} label={label} description={description} />
       <div className="shrink-0">{children}</div>
     </div>
   );
 }
 
-/** Stacked row — icon/label/description on top, a wide control (Segmented with
- * 3+ options) below, full-width. On >= sm screens it collapses back to the
- * same inline layout as Row, since desktop has the horizontal room. This is
- * the fix for the "badly scaled" mobile controls: a 4-5 option segmented
- * control gets the full row width to breathe instead of being squeezed next
- * to the label text on a 360px-wide screen. */
+/** Stacked row — header on top, full-width control below on mobile.
+ * Use for every Segmented control (2+ options). On >= sm it goes inline. */
 function StackRow({
-  icon: Icon,
+  icon,
   label,
   description,
   children,
@@ -93,17 +105,20 @@ function StackRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-2.5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
-      <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary sm:h-9 sm:w-9">
-          <Icon size={17} strokeWidth={2.25} />
-        </div>
-        <div className="min-w-0">
-          <p className="text-[13.5px] font-medium leading-tight sm:text-sm">{label}</p>
-          {description && <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground sm:text-xs">{description}</p>}
-        </div>
-      </div>
-      <div className="w-full sm:w-auto">{children}</div>
+    <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
+      <RowHeader icon={icon} label={label} description={description} />
+      {/* Child (Segmented) is stretched to the full row width on mobile. */}
+      <div className="w-full sm:w-auto sm:shrink-0 [&>*]:w-full sm:[&>*]:w-auto">{children}</div>
+    </div>
+  );
+}
+
+/** Label/value line for Storage & About. Value wraps / breaks instead of overflowing. */
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="shrink-0 text-sm text-muted-foreground">{label}</span>
+      <span className="min-w-0 break-words text-right text-sm font-medium">{value}</span>
     </div>
   );
 }
@@ -114,7 +129,7 @@ function Divider() {
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <h2 className="mb-1.5 mt-4 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:mb-2 sm:mt-6 sm:text-xs">
+    <h2 className="mb-2 mt-2 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:mt-6">
       {title}
     </h2>
   );
@@ -143,6 +158,13 @@ export default function SettingsPage() {
     onConfirm: () => void;
   } | null>(null);
 
+  // Keep the active tab centered in the mobile tab strip.
+  useEffect(() => {
+    document
+      .getElementById(`settings-tab-${activeSection}`)
+      ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [activeSection]);
+
   // --- Storage info (real data, read from the active local DB adapter) ---
   const [storageInfo, setStorageInfo] = useState({
     projectCount: 0,
@@ -158,7 +180,7 @@ export default function SettingsPage() {
       let used = '—';
       let quota = '—';
       if (estimate) {
-        const est = await estimate();
+        const est = await estimate.call(navigator.storage);
         used = formatBytes(est.usage ?? 0);
         quota = formatBytes(est.quota ?? 0);
       }
@@ -286,52 +308,57 @@ export default function SettingsPage() {
     { labelKey: 'reset_all_label', descKey: 'reset_all_desc', action: s.resetAll },
   ];
 
-  // Local click feedback for the plain <Button> actions on this page (the
-  // shared Button component isn't touched — it's used across the whole app —
-  // so the Sound/Haptic settings are applied here instead, scoped to Settings).
+  // Local click feedback for the plain <Button> actions on this page.
   const clickFx = () => {
     if (s.soundEffects) playClickSound();
     triggerHapticIfEnabled(s.hapticFeedback, 8);
   };
 
   return (
-    <motion.div variants={stagger} initial="hidden" animate="show" className="mx-auto max-w-4xl">
-      {/* Section selector — native-style horizontal filter/tab strip on mobile,
-          sidebar on desktop (md:hidden below). Bleeds edge-to-edge past the
-          page's own side padding (-mx-4, inner px-4) so it reads as a real
-          swipeable tab bar rather than a row of buttons trapped inside a
-          card — the same pattern used by Instagram/Twitter category bars. */}
-      <div className="relative mb-4 -mx-5 sm:mb-6 sm:mx-0 md:hidden">
-        <div className="flex snap-x snap-proximity gap-2 overflow-x-auto scroll-px-5 scrollbar-hide px-5 pb-1">
+    <motion.div
+      variants={stagger}
+      initial="hidden"
+      animate="show"
+      // Bottom padding keeps the last card clear of bottom nav / gesture bar.
+      className="mx-auto w-full max-w-4xl overflow-x-hidden pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-8"
+    >
+      {/* Mobile tab strip — edge-to-edge, swipeable, active tab auto-centers. */}
+      <div className="relative -mx-4 mb-3 sm:-mx-6 md:hidden">
+        <div
+          role="tablist"
+          className="flex snap-x snap-proximity gap-2 overflow-x-auto px-4 py-1 scrollbar-hide sm:px-6"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           {SECTIONS.map((sec) => (
             <button
               key={sec.id}
+              id={`settings-tab-${sec.id}`}
+              role="tab"
+              aria-selected={activeSection === sec.id}
               onClick={() => {
                 clickFx();
                 setActiveSection(sec.id);
               }}
-              aria-current={activeSection === sec.id}
               className={cn(
-                'flex shrink-0 snap-start items-center gap-1.5 whitespace-nowrap rounded-full px-4 text-[13px] font-semibold transition-colors',
+                'flex shrink-0 snap-center items-center gap-1.5 whitespace-nowrap rounded-full px-4 text-[13px] font-semibold transition-colors',
                 activeSection === sec.id
                   ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/30'
                   : 'bg-muted/60 text-muted-foreground active:bg-muted dark:bg-white/5'
               )}
-              style={{ minHeight: 40 }}
+              style={{ minHeight: 42 }}
             >
               <sec.icon size={15} strokeWidth={2.5} />
               {t(sec.labelKey)}
             </button>
           ))}
         </div>
-        {/* Trailing fade — a quiet visual cue that there's more to swipe to,
-            instead of relying on a sliver of a cut-off button peeking in. */}
+        {/* Trailing fade hint (pointer-events-none so it never blocks swipes). */}
         <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-secondary to-transparent dark:from-surface-dark" />
       </div>
 
       <div className="flex gap-6">
         {/* Desktop sidebar */}
-        <div className="hidden md:block w-56 shrink-0">
+        <div className="hidden w-56 shrink-0 md:block">
           <div className="sticky top-4 flex flex-col gap-1">
             {SECTIONS.map((sec) => (
               <button
@@ -380,7 +407,7 @@ export default function SettingsPage() {
                   </motion.div>
                   <Divider />
                   <motion.div variants={itemVar}>
-                    <Row icon={Moon} label={t('theme_label')} description={t('theme_desc')}>
+                    <StackRow icon={Moon} label={t('theme_label')} description={t('theme_desc')}>
                       <Segmented
                         aria-label={t('theme_label')}
                         value={themeMode}
@@ -391,11 +418,11 @@ export default function SettingsPage() {
                           { label: t('theme_system'), value: 'system' },
                         ]}
                       />
-                    </Row>
+                    </StackRow>
                   </motion.div>
                   <Divider />
                   <motion.div variants={itemVar}>
-                    <Row icon={Globe} label={t('language_label')} description={t('language_desc')}>
+                    <StackRow icon={Globe} label={t('language_label')} description={t('language_desc')}>
                       <Segmented
                         aria-label={t('language_label')}
                         value={s.language}
@@ -405,7 +432,7 @@ export default function SettingsPage() {
                           { label: 'English', value: 'en' },
                         ]}
                       />
-                    </Row>
+                    </StackRow>
                   </motion.div>
                   <Divider />
                   <motion.div variants={itemVar}>
@@ -550,7 +577,7 @@ export default function SettingsPage() {
                   </motion.div>
                   <Divider />
                   <motion.div variants={itemVar}>
-                    <Row icon={Circle} label={t('nodesize_label')} description={t('nodesize_desc')}>
+                    <StackRow icon={Circle} label={t('nodesize_label')} description={t('nodesize_desc')}>
                       <Segmented
                         aria-label={t('nodesize_label')}
                         value={s.nodeSize}
@@ -561,7 +588,7 @@ export default function SettingsPage() {
                           { label: t('nodesize_large'), value: 'large' },
                         ]}
                       />
-                    </Row>
+                    </StackRow>
                   </motion.div>
                   <Divider />
                   <motion.div variants={itemVar}>
@@ -596,7 +623,7 @@ export default function SettingsPage() {
               <SectionHeader title={t('section_storage')} />
               <Card>
                 <CardContent className="p-0">
-                  <div className="space-y-3 px-4 py-4 sm:px-5">
+                  <div className="space-y-3.5 px-4 py-4 sm:px-5">
                     {[
                       { label: t('storage_projects'), value: String(storageInfo.projectCount) },
                       { label: t('storage_quota'), value: storageInfo.storageQuota },
@@ -604,25 +631,24 @@ export default function SettingsPage() {
                       { label: t('storage_lastsave'), value: storageInfo.lastAutoSave },
                       { label: t('storage_type'), value: storageType },
                     ].map((row) => (
-                      <motion.div key={row.label} variants={itemVar} className="flex items-center justify-between gap-3">
-                        <span className="text-sm text-muted-foreground">{row.label}</span>
-                        <span className="text-sm font-medium">{row.value}</span>
+                      <motion.div key={row.label} variants={itemVar}>
+                        <InfoRow label={row.label} value={row.value} />
                       </motion.div>
                     ))}
                   </div>
                   <Divider />
                   <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:p-5">
-                    <Button variant="outline" onClick={() => { clickFx(); handleExportAll(); }} className="w-full justify-start">
-                      <Download size={18} /> {t('storage_export')}
+                    <Button variant="outline" onClick={() => { clickFx(); handleExportAll(); }} className="h-12 w-full justify-start sm:h-auto">
+                      <Download size={18} className="shrink-0" /> <span className="truncate">{t('storage_export')}</span>
                     </Button>
-                    <Button variant="outline" onClick={() => { clickFx(); handleImportBackup(); }} className="w-full justify-start">
-                      <Upload size={18} /> {t('storage_import')}
+                    <Button variant="outline" onClick={() => { clickFx(); handleImportBackup(); }} className="h-12 w-full justify-start sm:h-auto">
+                      <Upload size={18} className="shrink-0" /> <span className="truncate">{t('storage_import')}</span>
                     </Button>
-                    <Button variant="outline" onClick={() => { clickFx(); handleClearCache(); }} className="w-full justify-start">
-                      <Trash2 size={18} /> {t('storage_clearcache')}
+                    <Button variant="outline" onClick={() => { clickFx(); handleClearCache(); }} className="h-12 w-full justify-start sm:h-auto">
+                      <Trash2 size={18} className="shrink-0" /> <span className="truncate">{t('storage_clearcache')}</span>
                     </Button>
-                    <Button variant="outline" onClick={() => { clickFx(); handleOptimizeDb(); }} className="w-full justify-start">
-                      <Zap size={18} /> {t('storage_optimize')}
+                    <Button variant="outline" onClick={() => { clickFx(); handleOptimizeDb(); }} className="h-12 w-full justify-start sm:h-auto">
+                      <Zap size={18} className="shrink-0" /> <span className="truncate">{t('storage_optimize')}</span>
                     </Button>
                   </div>
                 </CardContent>
@@ -641,9 +667,9 @@ export default function SettingsPage() {
                       <span className="font-display text-2xl font-bold">G</span>
                     </div>
                     <h3 className="font-display text-xl font-semibold">GENSPACE PLC</h3>
-                    <p className="text-sm text-muted-foreground">{t('about_tagline')}</p>
+                    <p className="max-w-xs text-sm text-muted-foreground">{t('about_tagline')}</p>
                   </motion.div>
-                  <div className="mt-6 space-y-3">
+                  <div className="mt-6 space-y-3.5">
                     {[
                       { label: t('about_version'), value: pkg.version },
                       { label: t('about_build'), value: import.meta.env.MODE === 'production' ? 'Production' : 'Development' },
@@ -652,9 +678,8 @@ export default function SettingsPage() {
                       { label: t('about_developer'), value: 'GENSPACE Team' },
                       { label: t('about_license'), value: 'MIT' },
                     ].map((row) => (
-                      <motion.div key={row.label} variants={itemVar} className="flex items-center justify-between gap-3">
-                        <span className="text-sm text-muted-foreground">{row.label}</span>
-                        <span className="text-sm font-medium">{row.value}</span>
+                      <motion.div key={row.label} variants={itemVar}>
+                        <InfoRow label={row.label} value={row.value} />
                       </motion.div>
                     ))}
                   </div>
@@ -665,14 +690,14 @@ export default function SettingsPage() {
                       target="_blank"
                       rel="noreferrer noopener"
                       onClick={clickFx}
-                      className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium transition-colors hover:bg-muted/40 dark:hover:bg-white/5"
-                      style={{ minHeight: 44 }}
+                      className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium transition-colors hover:bg-muted/40 active:bg-muted/60 dark:hover:bg-white/5"
+                      style={{ minHeight: 48 }}
                     >
-                      <span className="flex items-center gap-2">
-                        <Instagram size={16} />
-                        Instagram @ghnisptra_
+                      <span className="flex min-w-0 items-center gap-2">
+                        <Instagram size={16} className="shrink-0" />
+                        <span className="truncate">Instagram @ghnisptra_</span>
                       </span>
-                      <ChevronRight size={16} className="text-muted-foreground" />
+                      <ChevronRight size={16} className="shrink-0 text-muted-foreground" />
                     </motion.a>
                   </div>
                 </CardContent>
@@ -703,16 +728,16 @@ export default function SettingsPage() {
                             },
                           });
                         }}
-                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40 dark:hover:bg-white/5 sm:gap-4 sm:px-5 sm:py-4"
-                        style={{ minHeight: 44 }}
+                        className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/40 active:bg-muted/60 dark:hover:bg-white/5 sm:gap-4 sm:px-5 sm:py-4"
+                        style={{ minHeight: 56 }}
                       >
-                        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-500 sm:h-9 sm:w-9">
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-500">
                             <RotateCcw size={17} strokeWidth={2.25} />
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-[13.5px] font-medium leading-tight sm:text-sm">{t(action.labelKey)}</p>
-                            <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground sm:text-xs">{t(action.descKey)}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium leading-tight">{t(action.labelKey)}</p>
+                            <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{t(action.descKey)}</p>
                           </div>
                         </div>
                         <ChevronRight size={16} className="shrink-0 text-muted-foreground" />
