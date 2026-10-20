@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   Settings as SettingsIcon, FileSliders as Sliders, CreditCard as Edit3, Database, Info,
@@ -84,19 +84,14 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-[60px] w-full min-w-0 items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">
+    <div className="flex min-h-[58px] w-full min-w-0 items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-5 sm:py-3.5">
       <RowHeader icon={icon} label={label} description={description} />
       <div className="shrink-0">{children}</div>
     </div>
   );
 }
 
-/** Stacked row — header on top, full-width control below on mobile.
- * Use for every Segmented control (2+ options). On >= sm it goes inline,
- * on lg (sidebar visible) it stacks again, on xl it goes inline again.
- * The control wrapper is capped (max-w-[55%]) when inline so it can never
- * push the row wider than the card; if options are still too many it
- * scrolls inside its own wrapper instead of stretching the page. */
+/** Stacked row — header on top, full-width control below on mobile. */
 function StackRow({
   icon,
   label,
@@ -111,28 +106,19 @@ function StackRow({
   return (
     <div className="flex w-full min-w-0 flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4 lg:flex-col lg:items-stretch lg:justify-start xl:flex-row xl:items-center xl:justify-between">
       <RowHeader icon={icon} label={label} description={description} />
-      {/* Child (Segmented) is stretched to the full row width on mobile. */}
-      <div
-        className={cn(
-          'w-full min-w-0 max-w-full overflow-x-auto scrollbar-hide',
-          '[&>*]:w-full [&>*]:min-w-0',
-          'sm:w-auto sm:max-w-[55%] sm:shrink-0 sm:[&>*]:w-auto',
-          'lg:w-full lg:max-w-full lg:shrink lg:[&>*]:w-full',
-          'xl:w-auto xl:max-w-[55%] xl:shrink-0 xl:[&>*]:w-auto'
-        )}
-      >
+      <div className="w-full min-w-0 sm:w-auto sm:max-w-[60%] sm:shrink-0 lg:w-full xl:w-auto xl:max-w-[60%]">
         {children}
       </div>
     </div>
   );
 }
 
-/** Label/value line for Storage & About. Value wraps / breaks instead of overflowing. */
+/** Label/value line for Storage & About. Clean wrapping and alignment on all screen sizes. */
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex min-w-0 items-start justify-between gap-4">
-      <span className="shrink-0 text-sm text-muted-foreground">{label}</span>
-      <span className="min-w-0 break-words text-right text-sm font-medium">{value}</span>
+    <div className="flex min-w-0 items-center justify-between gap-3 text-sm">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      <span className="min-w-0 break-words text-right font-medium text-foreground">{value}</span>
     </div>
   );
 }
@@ -164,6 +150,7 @@ export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState<SectionId>('general');
   const { t, lang } = useT();
   const { toast, showToast, dismissToast } = useToast();
+  const tabListRef = useRef<HTMLDivElement>(null);
 
   const [confirm, setConfirm] = useState<{
     title: string;
@@ -172,11 +159,16 @@ export default function SettingsPage() {
     onConfirm: () => void;
   } | null>(null);
 
-  // Keep the active tab centered in the mobile tab strip.
+  // Keep the active tab centered inside the mobile tab strip container ONLY,
+  // preventing horizontal scrolling of window/body.
   useEffect(() => {
-    document
-      .getElementById(`settings-tab-${activeSection}`)
-      ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    const container = tabListRef.current;
+    const tab = document.getElementById(`settings-tab-${activeSection}`);
+    if (container && tab) {
+      const scrollLeft =
+        tab.offsetLeft - container.clientWidth / 2 + tab.clientWidth / 2;
+      container.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' });
+    }
   }, [activeSection]);
 
   // --- Storage info (real data, read from the active local DB adapter) ---
@@ -337,11 +329,12 @@ export default function SettingsPage() {
       // Bottom padding keeps the last card clear of bottom nav / gesture bar.
       className="mx-auto w-full min-w-0 max-w-4xl overflow-x-hidden pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-8"
     >
-      {/* Mobile tab strip — edge-to-edge, swipeable, active tab auto-centers. */}
-      <div className="relative -mx-5 mb-3 md:-mx-8 lg:hidden">
+      {/* Mobile tab strip — swipeable, clean pill list strictly contained */}
+      <div className="relative mb-4 w-full overflow-hidden lg:hidden">
         <div
+          ref={tabListRef}
           role="tablist"
-          className="flex snap-x snap-proximity gap-2 overflow-x-auto px-5 py-1 scrollbar-hide md:px-8"
+          className="flex gap-2 overflow-x-auto py-1 scrollbar-hide px-0.5"
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
           {SECTIONS.map((sec) => (
@@ -355,20 +348,18 @@ export default function SettingsPage() {
                 setActiveSection(sec.id);
               }}
               className={cn(
-                'flex shrink-0 snap-center items-center gap-1.5 whitespace-nowrap rounded-full px-4 text-[13px] font-semibold transition-colors',
+                'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 text-[13px] font-semibold transition-all duration-200 select-none',
                 activeSection === sec.id
-                  ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/30'
-                  : 'bg-muted/60 text-muted-foreground active:bg-muted dark:bg-white/5'
+                  ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/25 scale-[1.02]'
+                  : 'bg-muted/70 text-muted-foreground hover:bg-muted active:bg-muted/80 dark:bg-white/5'
               )}
-              style={{ minHeight: 42 }}
+              style={{ minHeight: 40 }}
             >
-              <sec.icon size={15} strokeWidth={2.5} />
+              <sec.icon size={15} strokeWidth={2.25} />
               {t(sec.labelKey)}
             </button>
           ))}
         </div>
-        {/* Trailing fade hint (pointer-events-none so it never blocks swipes). */}
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-secondary to-transparent dark:from-surface-dark" />
       </div>
 
       <div className="flex w-full min-w-0 gap-4 xl:gap-6">
@@ -637,8 +628,8 @@ export default function SettingsPage() {
             <motion.div variants={stagger} initial="hidden" animate="show" className="w-full min-w-0">
               <SectionHeader title={t('section_storage')} />
               <Card className="w-full min-w-0 overflow-hidden">
-                <CardContent className="min-w-0 p-0">
-                  <div className="min-w-0 space-y-3.5 px-4 py-4 sm:px-5">
+                <CardContent className="min-w-0 p-4 sm:p-6">
+                  <div className="min-w-0 divide-y divide-border/40 dark:divide-border-dark/40">
                     {[
                       { label: t('storage_projects'), value: String(storageInfo.projectCount) },
                       { label: t('storage_quota'), value: storageInfo.storageQuota },
@@ -646,24 +637,24 @@ export default function SettingsPage() {
                       { label: t('storage_lastsave'), value: storageInfo.lastAutoSave },
                       { label: t('storage_type'), value: storageType },
                     ].map((row) => (
-                      <motion.div key={row.label} variants={itemVar}>
+                      <motion.div key={row.label} variants={itemVar} className="py-2.5 first:pt-0 last:pb-0">
                         <InfoRow label={row.label} value={row.value} />
                       </motion.div>
                     ))}
                   </div>
-                  <Divider />
-                  <div className="grid min-w-0 grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:p-5">
-                    <Button variant="outline" onClick={() => { clickFx(); handleExportAll(); }} className="h-12 w-full min-w-0 justify-start sm:h-auto">
-                      <Download size={18} className="shrink-0" /> <span className="truncate">{t('storage_export')}</span>
+
+                  <div className="mt-5 pt-4 border-t border-border/50 dark:border-border-dark/50 grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-2">
+                    <Button variant="outline" onClick={() => { clickFx(); handleExportAll(); }} className="h-11 w-full min-w-0 justify-start">
+                      <Download size={17} className="shrink-0 mr-2 text-primary" /> <span className="truncate">{t('storage_export')}</span>
                     </Button>
-                    <Button variant="outline" onClick={() => { clickFx(); handleImportBackup(); }} className="h-12 w-full min-w-0 justify-start sm:h-auto">
-                      <Upload size={18} className="shrink-0" /> <span className="truncate">{t('storage_import')}</span>
+                    <Button variant="outline" onClick={() => { clickFx(); handleImportBackup(); }} className="h-11 w-full min-w-0 justify-start">
+                      <Upload size={17} className="shrink-0 mr-2 text-primary" /> <span className="truncate">{t('storage_import')}</span>
                     </Button>
-                    <Button variant="outline" onClick={() => { clickFx(); handleClearCache(); }} className="h-12 w-full min-w-0 justify-start sm:h-auto">
-                      <Trash2 size={18} className="shrink-0" /> <span className="truncate">{t('storage_clearcache')}</span>
+                    <Button variant="outline" onClick={() => { clickFx(); handleClearCache(); }} className="h-11 w-full min-w-0 justify-start">
+                      <Trash2 size={17} className="shrink-0 mr-2 text-muted-foreground" /> <span className="truncate">{t('storage_clearcache')}</span>
                     </Button>
-                    <Button variant="outline" onClick={() => { clickFx(); handleOptimizeDb(); }} className="h-12 w-full min-w-0 justify-start sm:h-auto">
-                      <Zap size={18} className="shrink-0" /> <span className="truncate">{t('storage_optimize')}</span>
+                    <Button variant="outline" onClick={() => { clickFx(); handleOptimizeDb(); }} className="h-11 w-full min-w-0 justify-start">
+                      <Zap size={17} className="shrink-0 mr-2 text-primary" /> <span className="truncate">{t('storage_optimize')}</span>
                     </Button>
                   </div>
                 </CardContent>
@@ -676,15 +667,18 @@ export default function SettingsPage() {
             <motion.div variants={stagger} initial="hidden" animate="show" className="w-full min-w-0">
               <SectionHeader title={t('section_about')} />
               <Card className="w-full min-w-0 overflow-hidden">
-                <CardContent className="min-w-0 p-4 sm:p-6">
-                  <motion.div variants={itemVar} className="flex flex-col items-center gap-3 text-center">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-primary text-primary-foreground shadow-sm">
+                <CardContent className="min-w-0 p-5 sm:p-6">
+                  <motion.div variants={itemVar} className="flex flex-col items-center gap-2.5 text-center pb-5 border-b border-border/50 dark:border-border-dark/50">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md shadow-primary/25">
                       <span className="font-display text-2xl font-bold">G</span>
                     </div>
-                    <h3 className="font-display text-xl font-semibold">GENSPACE PLC</h3>
-                    <p className="max-w-xs text-sm text-muted-foreground">{t('about_tagline')}</p>
+                    <div>
+                      <h3 className="font-display text-xl font-bold tracking-tight">GENSPACE PLC</h3>
+                      <p className="mt-1 text-xs sm:text-sm text-muted-foreground max-w-xs">{t('about_tagline')}</p>
+                    </div>
                   </motion.div>
-                  <div className="mt-6 min-w-0 space-y-3.5">
+
+                  <div className="mt-5 min-w-0 divide-y divide-border/40 dark:divide-border-dark/40">
                     {[
                       { label: t('about_version'), value: pkg.version },
                       { label: t('about_build'), value: import.meta.env.MODE === 'production' ? 'Production' : 'Development' },
@@ -693,23 +687,24 @@ export default function SettingsPage() {
                       { label: t('about_developer'), value: 'GENSPACE Team' },
                       { label: t('about_license'), value: 'MIT' },
                     ].map((row) => (
-                      <motion.div key={row.label} variants={itemVar}>
+                      <motion.div key={row.label} variants={itemVar} className="py-2.5 first:pt-0 last:pb-0">
                         <InfoRow label={row.label} value={row.value} />
                       </motion.div>
                     ))}
                   </div>
-                  <div className="mt-6 space-y-2">
+
+                  <div className="mt-5 pt-4 border-t border-border/50 dark:border-border-dark/50">
                     <motion.a
                       variants={itemVar}
                       href={INSTAGRAM_URL}
                       target="_blank"
                       rel="noreferrer noopener"
                       onClick={clickFx}
-                      className="flex w-full min-w-0 items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium transition-colors hover:bg-muted/40 active:bg-muted/60 dark:hover:bg-white/5"
+                      className="flex w-full min-w-0 items-center justify-between rounded-2xl bg-muted/40 dark:bg-white/5 px-4 py-3 text-sm font-medium transition-all hover:bg-muted active:scale-[0.99]"
                       style={{ minHeight: 48 }}
                     >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <Instagram size={16} className="shrink-0" />
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <Instagram size={17} className="shrink-0 text-primary" />
                         <span className="truncate">Instagram @ghnisptra_</span>
                       </span>
                       <ChevronRight size={16} className="shrink-0 text-muted-foreground" />
@@ -725,10 +720,9 @@ export default function SettingsPage() {
             <motion.div variants={stagger} initial="hidden" animate="show" className="w-full min-w-0">
               <SectionHeader title={t('section_reset')} />
               <Card className="w-full min-w-0 overflow-hidden">
-                <CardContent className="min-w-0 p-0">
-                  {resetActions.map((action, idx) => (
+                <CardContent className="min-w-0 p-0 divide-y divide-border/40 dark:divide-border-dark/40">
+                  {resetActions.map((action) => (
                     <motion.div key={action.labelKey} variants={itemVar}>
-                      {idx > 0 && <Divider />}
                       <button
                         onClick={() => {
                           clickFx();
