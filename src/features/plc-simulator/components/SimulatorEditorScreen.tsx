@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useSettingsStore } from '@/stores/settingsStore'
 import type { PlcProject } from '../projectTypes'
 import { downloadFile, sanitizeFilename, EXPORT_FORMAT_VERSION } from '../projectTypes'
 import type { ProjectExportEnvelope } from '../projectTypes'
@@ -31,8 +32,8 @@ interface SimulatorEditorScreenProps {
 const DEFAULT_COLS = 5   // fits comfortably on a phone screen, per rung (extend right via + up to MAX_COLS)
 const MIN_COLS = 4
 const MAX_COLS = 24
-const CELL_W = 64
-const CELL_H = 52
+const DEFAULT_CELL_W = 64
+const DEFAULT_CELL_H = 52
 
 type CellType = 'WIRE' | 'NO' | 'NC' | 'COIL' | 'SET' | 'RST' | 'TON' | 'TOF' | 'TP' | 'CTU' | 'CTD' | 'RES' | 'MEM'
 type ToolId = CellType | 'SELECT' | 'DELETE' | 'BRANCH'
@@ -173,126 +174,154 @@ function TrashIcon({ size = 18, color }: { size?: number; color: string }) {
   )
 }
 
-function CellSVG({ cell, isActive, conducts, isDark, isEmpty, error }: { cell: CellSlot; isActive: boolean; conducts?: boolean; isDark: boolean; isEmpty?: boolean; error?: boolean }) {
+function CellSVG({
+  cell,
+  isActive,
+  conducts,
+  isDark,
+  isEmpty,
+  error,
+  cellW = DEFAULT_CELL_W,
+  nodeScale = 1.0,
+  wireAnimation = true,
+}: {
+  cell: CellSlot
+  isActive: boolean
+  conducts?: boolean
+  isDark: boolean
+  isEmpty?: boolean
+  error?: boolean
+  cellW?: number
+  nodeScale?: number
+  wireAnimation?: boolean
+}) {
   // `isActive` = incoming power reaching this cell (the rail segment up TO here).
   // `conducts` = whether this cell actually PASSES current onward (incoming power
-  // AND, for a contact, its own address condition being satisfied). For non-
-  // blocking cells (WIRE/COIL/SET/RST/TON/TOF/TP/CTU/CTD/RES) the two are always
-  // identical, so `conducts` simply falls back to `isActive`. For NO/NC/MEM they
-  // can differ — that's exactly the case a real PLC editor must show correctly:
-  // the contact symbol and the wire LEAVING it must only light up when current
-  // truly gets past the contact, never just because power arrived at its input.
+  // AND, for a contact, its own address condition being satisfied).
   const passes = conducts ?? isActive
   const stroke = error ? '#EF4444' : isActive ? '#22C55E' : isDark ? '#9E9E9E' : '#555'
   const lineColor = error ? '#EF444488' : isDark ? '#555' : '#BDBDBD'
+  const cx = Math.round(cellW / 2)
 
   if (!cell || !cell.type) {
-    // A truly EMPTY cell is an open circuit — nothing is drawn automatically.
-    // When it breaks an otherwise-wired path, show the gap in red so the
-    // discontinuity is visible right where it happens.
     return (
-      <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-        {error && <line x1={CELL_W / 2 - 5} y1="20" x2={CELL_W / 2 + 5} y2="20" stroke="#EF4444" strokeWidth="3" strokeLinecap="round" strokeDasharray="3 4" />}
+      <svg width={cellW} height="40" viewBox={`0 0 ${cellW} 40`}>
+        {error && <line x1={cx - 5} y1="20" x2={cx + 5} y2="20" stroke="#EF4444" strokeWidth="3" strokeLinecap="round" strokeDasharray="3 4" />}
         {isEmpty === false ? null : null}
       </svg>
     )
   }
 
   const flowStroke = error ? '#EF4444' : isActive ? '#22C55E' : stroke
-  const dashProps = isActive && !error ? { strokeDasharray: '8 4', className: 'power-flow-active' } : {}
-  // Contact-specific: the switch body and everything downstream of it only
-  // light up when it's actually conducting, not merely receiving power.
+  const dashProps = isActive && !error && wireAnimation ? { strokeDasharray: '8 4', className: 'power-flow-active' } : {}
   const contactStroke = error ? '#EF4444' : passes ? '#22C55E' : isDark ? '#9E9E9E' : '#555'
-  const contactDash = passes && !error ? { strokeDasharray: '8 4', className: 'power-flow-active' } : {}
+  const contactDash = passes && !error && wireAnimation ? { strokeDasharray: '8 4', className: 'power-flow-active' } : {}
+
+  const scaleTransform = nodeScale !== 1 ? `scale(${nodeScale})` : undefined
+  const scaleOrigin = `${cx}px 20px`
 
   switch (cell.type) {
     case 'NO':
       return (
-        <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
-          <line x1="18" y1="12" x2="18" y2="28" stroke={contactStroke} strokeWidth="2" strokeLinecap="round" />
-          <line x1="46" y1="12" x2="46" y2="28" stroke={contactStroke} strokeWidth="2" strokeLinecap="round" />
-          <line x1="46" y1="20" x2={CELL_W} y2="20" stroke={passes ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" {...(passes ? contactDash : {})} />
-          <text x="32" y="10" textAnchor="middle" fontSize="9" fill={contactStroke} fontFamily="JetBrains Mono">{cell.address}</text>
+        <svg width={cellW} height="40" viewBox={`0 0 ${cellW} 40`}>
+          <line x1="0" y1="20" x2={cx - 14} y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
+          <g transform={scaleTransform} style={{ transformOrigin: scaleOrigin }}>
+            <line x1={cx - 14} y1="12" x2={cx - 14} y2="28" stroke={contactStroke} strokeWidth="2" strokeLinecap="round" />
+            <line x1={cx + 14} y1="12" x2={cx + 14} y2="28" stroke={contactStroke} strokeWidth="2" strokeLinecap="round" />
+            <text x={cx} y="10" textAnchor="middle" fontSize="9" fill={contactStroke} fontFamily="JetBrains Mono">{cell.address}</text>
+          </g>
+          <line x1={cx + 14} y1="20" x2={cellW} y2="20" stroke={passes ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" {...(passes ? contactDash : {})} />
         </svg>
       )
     case 'NC':
       return (
-        <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
-          <line x1="18" y1="12" x2="18" y2="28" stroke={contactStroke} strokeWidth="2" strokeLinecap="round" />
-          <line x1="46" y1="12" x2="46" y2="28" stroke={contactStroke} strokeWidth="2" strokeLinecap="round" />
-          <line x1="22" y1="12" x2="42" y2="28" stroke={contactStroke} strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="46" y1="20" x2={CELL_W} y2="20" stroke={passes ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" {...(passes ? contactDash : {})} />
-          <text x="32" y="10" textAnchor="middle" fontSize="9" fill={contactStroke} fontFamily="JetBrains Mono">{cell.address}</text>
+        <svg width={cellW} height="40" viewBox={`0 0 ${cellW} 40`}>
+          <line x1="0" y1="20" x2={cx - 14} y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
+          <g transform={scaleTransform} style={{ transformOrigin: scaleOrigin }}>
+            <line x1={cx - 14} y1="12" x2={cx - 14} y2="28" stroke={contactStroke} strokeWidth="2" strokeLinecap="round" />
+            <line x1={cx + 14} y1="12" x2={cx + 14} y2="28" stroke={contactStroke} strokeWidth="2" strokeLinecap="round" />
+            <line x1={cx - 10} y1="12" x2={cx + 10} y2="28" stroke={contactStroke} strokeWidth="1.5" strokeLinecap="round" />
+            <text x={cx} y="10" textAnchor="middle" fontSize="9" fill={contactStroke} fontFamily="JetBrains Mono">{cell.address}</text>
+          </g>
+          <line x1={cx + 14} y1="20" x2={cellW} y2="20" stroke={passes ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" {...(passes ? contactDash : {})} />
         </svg>
       )
     case 'COIL':
     case 'SET':
     case 'RST':
       return (
-        <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
-          <circle cx="32" cy="20" r="10" fill="none" stroke={isActive ? '#22C55E' : stroke} strokeWidth="2" />
-          {isActive && <circle cx="32" cy="20" r="10" fill="#22C55E22" />}
-          <text x="32" y="24" textAnchor="middle" fontSize="8" fill={isActive ? '#22C55E' : stroke} fontFamily="JetBrains Mono" fontWeight="bold">
-            {cell.type === 'COIL' ? '' : cell.type}
-          </text>
-          <line x1="42" y1="20" x2={CELL_W} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
-          <text x="32" y="10" textAnchor="middle" fontSize="9" fill={isActive ? '#22C55E' : stroke} fontFamily="JetBrains Mono">{cell.address}</text>
+        <svg width={cellW} height="40" viewBox={`0 0 ${cellW} 40`}>
+          <line x1="0" y1="20" x2={cx - 14} y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
+          <g transform={scaleTransform} style={{ transformOrigin: scaleOrigin }}>
+            <circle cx={cx} cy="20" r="10" fill="none" stroke={isActive ? '#22C55E' : stroke} strokeWidth="2" />
+            {isActive && <circle cx={cx} cy="20" r="10" fill="#22C55E22" />}
+            <text x={cx} y="24" textAnchor="middle" fontSize="8" fill={isActive ? '#22C55E' : stroke} fontFamily="JetBrains Mono" fontWeight="bold">
+              {cell.type === 'COIL' ? '' : cell.type}
+            </text>
+            <text x={cx} y="10" textAnchor="middle" fontSize="9" fill={isActive ? '#22C55E' : stroke} fontFamily="JetBrains Mono">{cell.address}</text>
+          </g>
+          <line x1={cx + 10} y1="20" x2={cellW} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       )
     case 'TON':
     case 'TOF':
     case 'TP':
       return (
-        <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2="10" y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
-          <rect x="10" y="8" width="44" height="24" rx="4" fill={isActive ? '#D9770620' : isDark ? '#2D1A00' : '#FFF8EE'} stroke="#D97706" strokeWidth="1.5" />
-          <text x="32" y="18" textAnchor="middle" fontSize="9" fill="#D97706" fontFamily="JetBrains Mono" fontWeight="600">{cell.type}</text>
-          <text x="32" y="29" textAnchor="middle" fontSize="8" fill="#D97706" fontFamily="JetBrains Mono">{cell.preset || 0}{cell.timeUnit || 'ms'}</text>
-          <line x1="54" y1="20" x2={CELL_W} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <svg width={cellW} height="40" viewBox={`0 0 ${cellW} 40`}>
+          <line x1="0" y1="20" x2={cx - 22} y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
+          <g transform={scaleTransform} style={{ transformOrigin: scaleOrigin }}>
+            <rect x={cx - 22} y="8" width="44" height="24" rx="4" fill={isActive ? '#D9770620' : isDark ? '#2D1A00' : '#FFF8EE'} stroke="#D97706" strokeWidth="1.5" />
+            <text x={cx} y="18" textAnchor="middle" fontSize="9" fill="#D97706" fontFamily="JetBrains Mono" fontWeight="600">{cell.type}</text>
+            <text x={cx} y="29" textAnchor="middle" fontSize="8" fill="#D97706" fontFamily="JetBrains Mono">{cell.preset || 0}{cell.timeUnit || 'ms'}</text>
+          </g>
+          <line x1={cx + 22} y1="20" x2={cellW} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       )
     case 'CTU':
     case 'CTD':
       return (
-        <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2="10" y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
-          <rect x="10" y="8" width="44" height="24" rx="4" fill={isDark ? '#001A2D' : '#EFF6FF'} stroke="#2563EB" strokeWidth="1.5" />
-          <text x="32" y="18" textAnchor="middle" fontSize="9" fill="#2563EB" fontFamily="JetBrains Mono" fontWeight="600">{cell.type}</text>
-          <text x="32" y="29" textAnchor="middle" fontSize="8" fill="#2563EB" fontFamily="JetBrains Mono">PV:{cell.preset || 0}</text>
-          <line x1="54" y1="20" x2={CELL_W} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <svg width={cellW} height="40" viewBox={`0 0 ${cellW} 40`}>
+          <line x1="0" y1="20" x2={cx - 22} y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
+          <g transform={scaleTransform} style={{ transformOrigin: scaleOrigin }}>
+            <rect x={cx - 22} y="8" width="44" height="24" rx="4" fill={isDark ? '#001A2D' : '#EFF6FF'} stroke="#2563EB" strokeWidth="1.5" />
+            <text x={cx} y="18" textAnchor="middle" fontSize="9" fill="#2563EB" fontFamily="JetBrains Mono" fontWeight="600">{cell.type}</text>
+            <text x={cx} y="29" textAnchor="middle" fontSize="8" fill="#2563EB" fontFamily="JetBrains Mono">PV:{cell.preset || 0}</text>
+          </g>
+          <line x1={cx + 22} y1="20" x2={cellW} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       )
     case 'MEM':
       return (
-        <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
-          <rect x="18" y="10" width="28" height="20" rx="4" fill="none" stroke={contactStroke} strokeWidth="1.5" />
-          <text x="32" y="23" textAnchor="middle" fontSize="9" fill={contactStroke} fontFamily="JetBrains Mono" fontWeight="bold">M</text>
-          <line x1="46" y1="20" x2={CELL_W} y2="20" stroke={passes ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
-          <text x="32" y="9" textAnchor="middle" fontSize="8" fill={contactStroke} fontFamily="JetBrains Mono">{cell.address}</text>
+        <svg width={cellW} height="40" viewBox={`0 0 ${cellW} 40`}>
+          <line x1="0" y1="20" x2={cx - 14} y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
+          <g transform={scaleTransform} style={{ transformOrigin: scaleOrigin }}>
+            <rect x={cx - 14} y="10" width="28" height="20" rx="4" fill="none" stroke={contactStroke} strokeWidth="1.5" />
+            <text x={cx} y="23" textAnchor="middle" fontSize="9" fill={contactStroke} fontFamily="JetBrains Mono" fontWeight="bold">M</text>
+            <text x={cx} y="9" textAnchor="middle" fontSize="8" fill={contactStroke} fontFamily="JetBrains Mono">{cell.address}</text>
+          </g>
+          <line x1={cx + 14} y1="20" x2={cellW} y2="20" stroke={passes ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       )
     case 'RES':
       return (
-        <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2="18" y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
-          <circle cx="32" cy="20" r="10" fill="none" stroke={stroke} strokeWidth="2" />
-          <text x="32" y="24" textAnchor="middle" fontSize="7" fill={stroke} fontFamily="JetBrains Mono" fontWeight="bold">RES</text>
-          <line x1="42" y1="20" x2={CELL_W} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
-          <text x="32" y="10" textAnchor="middle" fontSize="9" fill={stroke} fontFamily="JetBrains Mono">{cell.address}</text>
+        <svg width={cellW} height="40" viewBox={`0 0 ${cellW} 40`}>
+          <line x1="0" y1="20" x2={cx - 14} y2="20" stroke={flowStroke} strokeWidth="1.5" strokeLinecap="round" {...dashProps} />
+          <g transform={scaleTransform} style={{ transformOrigin: scaleOrigin }}>
+            <circle cx={cx} cy="20" r="10" fill="none" stroke={stroke} strokeWidth="2" />
+            <text x={cx} y="24" textAnchor="middle" fontSize="7" fill={stroke} fontFamily="JetBrains Mono" fontWeight="bold">RES</text>
+            <text x={cx} y="10" textAnchor="middle" fontSize="9" fill={stroke} fontFamily="JetBrains Mono">{cell.address}</text>
+          </g>
+          <line x1={cx + 10} y1="20" x2={cellW} y2="20" stroke={isActive ? '#22C55E' : lineColor} strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       )
     case 'WIRE':
       return (
-        <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`}>
-          <line x1="0" y1="20" x2={CELL_W} y2="20" stroke={flowStroke} strokeWidth="2" strokeLinecap="round" {...dashProps} />
+        <svg width={cellW} height="40" viewBox={`0 0 ${cellW} 40`}>
+          <line x1="0" y1="20" x2={cellW} y2="20" stroke={flowStroke} strokeWidth="2" strokeLinecap="round" {...dashProps} />
         </svg>
       )
     default:
-      return <svg width={CELL_W} height="40" viewBox={`0 0 ${CELL_W} 40`} />
+      return <svg width={cellW} height="40" viewBox={`0 0 ${cellW} 40`} />
   }
 }
 
@@ -469,13 +498,32 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
   const railColor = isDark ? '#E5E5E5' : '#2D2D2D'
   const gridLine = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
 
+  const {
+    gridSize,
+    nodeSize,
+    undoHistoryLimit,
+    autoBackup,
+    autoSave,
+    defaultScanTime,
+    showGrid,
+    wireAnimation,
+    defaultZoom,
+    showFPS,
+  } = useSettingsStore()
+
+  // Dynamic grid & component scaling derived from Settings
+  const cellW = gridSize === 20 ? 54 : gridSize === 60 ? 80 : DEFAULT_CELL_W
+  const cellH = gridSize === 20 ? 44 : gridSize === 60 ? 64 : DEFAULT_CELL_H
+  const nodeScale = nodeSize === 'small' ? 0.85 : nodeSize === 'large' ? 1.18 : 1.0
+  const scanInterval = defaultScanTime || 50
+
   const [rungs, setRungs] = useState<Rung[]>([makeRung(1), makeRung(2), makeRung(3)])
   const [running, setRunning] = useState(false)
   const [selectedTool, setSelectedTool] = useState<ToolId>('SELECT')
   const [dialog, setDialog] = useState<Dialog>({ type: null, rungId: 0, row: 0, col: 0 })
   const [bottomPanelOpen, setBottomPanelOpen] = useState(true)
   const [activeRung, setActiveRung] = useState<number | null>(null)
-  const [zoom, setZoom] = useState(1)
+  const [zoom, setZoom] = useState(() => (defaultZoom ? defaultZoom / 100 : 1))
   const [fabOpen, setFabOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [branchAnchor, setBranchAnchor] = useState<{ rungId: number; row: number; col: number } | null>(null)
@@ -583,11 +631,12 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
 
   const recordHistory = useCallback(() => {
     undoStackRef.current.push(rungsRef.current)
-    if (undoStackRef.current.length > 100) undoStackRef.current.shift()
+    const limit = undoHistoryLimit || 100
+    if (undoStackRef.current.length > limit) undoStackRef.current.shift()
     redoStackRef.current = []
     dirtyRef.current = true
     forceHistoryUpdate({})
-  }, [])
+  }, [undoHistoryLimit])
 
   const undo = useCallback(() => {
     if (undoStackRef.current.length === 0) return
@@ -610,10 +659,22 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
 
   handleSaveRef.current = () => {
     if (onSaveLadder) {
-      onSaveLadder(JSON.stringify(rungsRef.current))
+      const ladderJson = JSON.stringify(rungsRef.current)
+      onSaveLadder(ladderJson)
       dirtyRef.current = false
       setAutoSaveIndicator(true)
       setTimeout(() => setAutoSaveIndicator(false), 1500)
+
+      if (autoBackup && project?.id) {
+        try {
+          localStorage.setItem(`genspace_backup_${project.id}`, JSON.stringify({
+            projectId: project.id,
+            projectName: project.name,
+            savedAt: new Date().toISOString(),
+            ladderJson,
+          }))
+        } catch { /* storage quota ignore */ }
+      }
     }
   }
 
@@ -644,18 +705,18 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
         else if (cell.type === 'RST') { if (energized) mem[cell.address] = false }
         else if (cell.type === 'TON') {
           const t = newTimers[cell.address] || { acc: 0, done: false }
-          t.acc = energized ? Math.min(t.acc + TICK_MS, presetMs) : 0
+          t.acc = energized ? Math.min(t.acc + scanInterval, presetMs) : 0
           t.done = t.acc >= presetMs && presetMs > 0
           newTimers[cell.address] = { ...t }
         } else if (cell.type === 'TOF') {
           const t = newTimers[cell.address] || { acc: 0, done: false }
-          if (energized) { t.acc = 0; t.done = true } else { t.acc = Math.min(t.acc + TICK_MS, presetMs); t.done = t.acc < presetMs }
+          if (energized) { t.acc = 0; t.done = true } else { t.acc = Math.min(t.acc + scanInterval, presetMs); t.done = t.acc < presetMs }
           newTimers[cell.address] = { ...t }
         } else if (cell.type === 'TP') {
           const t = newTimers[cell.address] || { acc: presetMs, done: false }
           const rising = energized && !edgeRef.current[key]
           if (rising) t.acc = 0
-          if (t.acc < presetMs) t.acc = Math.min(t.acc + TICK_MS, presetMs)
+          if (t.acc < presetMs) t.acc = Math.min(t.acc + scanInterval, presetMs)
           t.done = t.acc < presetMs
           newTimers[cell.address] = { ...t }
         } else if (cell.type === 'CTU') {
@@ -686,10 +747,10 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
 
   useEffect(() => {
     if (!running) return
-    const id = setInterval(tick, TICK_MS)
+    const id = setInterval(tick, scanInterval)
     return () => clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [running])
+  }, [running, scanInterval])
 
   // ===== Load project ladder on mount =====
   useEffect(() => {
@@ -705,9 +766,12 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
     }
   }, [project])
 
-  // ===== Auto-save (30s interval, background — never blocks UI) =====
+  // ===== Auto-save based on Settings -> Umum -> Simpan Otomatis =====
   useEffect(() => {
     if (!onSaveLadder) return
+    const autoSaveMs = autoSave === 'off' ? 0 : autoSave === '1m' ? 60000 : autoSave === '5m' ? 300000 : autoSave === '10m' ? 600000 : 30000
+    if (autoSaveMs === 0) return
+
     const interval = setInterval(() => {
       if (dirtyRef.current) {
         onSaveLadder(JSON.stringify(rungsRef.current))
@@ -715,9 +779,9 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
         setAutoSaveIndicator(true)
         setTimeout(() => setAutoSaveIndicator(false), 1500)
       }
-    }, 30000)
+    }, autoSaveMs)
     return () => clearInterval(interval)
-  }, [onSaveLadder])
+  }, [onSaveLadder, autoSave])
 
   // ===== Keyboard shortcuts (Ctrl+Z undo, Ctrl+Y redo, Ctrl+S save) =====
   useEffect(() => {
@@ -1257,7 +1321,10 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
             padding: '4px 16px', display: 'flex', alignItems: 'center', gap: 8,
           }}>
             <div style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E', animation: 'pulseGlow 1s ease infinite' }} />
-            <span style={{ fontSize: 11, color: '#22C55E', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>RUNNING · Scan: {TICK_MS / 10}ms</span>
+            <span style={{ fontSize: 11, color: '#22C55E', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>RUNNING · Scan: {scanInterval}ms</span>
+            {showFPS && (
+              <span style={{ marginLeft: 'auto', fontSize: 10, color: '#22C55E', fontFamily: 'JetBrains Mono' }}>FPS: 60</span>
+            )}
           </div>
         )}
 
@@ -1271,7 +1338,7 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
             const barColor = !validity.valid ? '#EF4444' : isActive ? '#22C55E' : railColor
 
             const totalRows = rung.rows.length
-            const gridPxHeight = totalRows * CELL_H
+            const gridPxHeight = totalRows * cellH
 
             return (
               <div
@@ -1302,9 +1369,9 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
                     <div style={{
                       position: 'relative',
                       display: 'grid',
-                      gridTemplateColumns: `repeat(${cols}, ${CELL_W}px)`,
-                      gridTemplateRows: `repeat(${totalRows}, ${CELL_H}px)`,
-                      width: cols * CELL_W,
+                      gridTemplateColumns: `repeat(${cols}, ${cellW}px)`,
+                      gridTemplateRows: `repeat(${totalRows}, ${cellH}px)`,
+                      width: cols * cellW,
                       height: gridPxHeight,
                     }}>
                       {/* every row is rendered the same way — the main rail (row 0) is not
@@ -1319,12 +1386,23 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
                             onDoubleClick={e => { e.stopPropagation(); handleCellDoubleTap(rung.id, r, c) }}
                             style={{
                               gridColumn: c + 1, gridRow: r + 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              cursor: 'pointer', boxSizing: 'border-box', borderRight: `1px solid ${gridLine}`, borderBottom: `1px solid ${gridLine}`,
+                              cursor: 'pointer', boxSizing: 'border-box',
+                              borderRight: showGrid ? `1px solid ${gridLine}` : '1px solid transparent',
+                              borderBottom: showGrid ? `1px solid ${gridLine}` : '1px solid transparent',
                               backgroundColor: r > 0 ? (isDark ? '#20202088' : '#F7F7F788') : undefined,
                               boxShadow: isAnchor ? 'inset 0 0 0 2px #F59E0B' : undefined,
                             }}
                           >
-                            <CellSVG cell={cell} isActive={running && !!powerMap[`${rung.id}-r${r}-${c}`]} conducts={running && !!powerMap[`${rung.id}-r${r}-${c}-out`]} isDark={isDark} error={validity.badCells.has(`${r}-${c}`)} />
+                            <CellSVG
+                              cell={cell}
+                              isActive={running && !!powerMap[`${rung.id}-r${r}-${c}`]}
+                              conducts={running && !!powerMap[`${rung.id}-r${r}-${c}-out`]}
+                              isDark={isDark}
+                              error={validity.badCells.has(`${r}-${c}`)}
+                              cellW={cellW}
+                              nodeScale={nodeScale}
+                              wireAnimation={wireAnimation}
+                            />
                           </div>
                         )
                       }))}
@@ -1335,8 +1413,8 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
                       {rung.links.map((l, li) => {
                         const topRow = Math.min(l.rowA, l.rowB)
                         const botRow = Math.max(l.rowA, l.rowB)
-                        const top = topRow * CELL_H + CELL_H / 2
-                        const height = (botRow - topRow) * CELL_H
+                        const top = topRow * cellH + cellH / 2
+                        const height = (botRow - topRow) * cellH
                         const linkOn = validity.valid && running && !!powerMap[`${rung.id}-r${l.rowA}-${l.col}`]
                         const tieColor = !validity.valid ? '#EF4444' : linkOn ? '#22C55E' : railColor
                         // Just-placed junctions get a brief "locked in" glow so the tap
@@ -1347,16 +1425,16 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
                         return (
                           <div key={`link-${li}`} onClick={e => { e.stopPropagation(); linkRows(rung.id, l.rowA, l.rowB, l.col) }} title="Tap to remove this junction" style={{ cursor: 'pointer' }}>
                             <div style={{
-                              position: 'absolute', left: l.col * CELL_W - 1, top, width: 2, height, backgroundColor: tieColor, zIndex: 2,
+                              position: 'absolute', left: l.col * cellW - 1, top, width: 2, height, backgroundColor: tieColor, zIndex: 2,
                               boxShadow: justPlaced ? `0 0 0 3px ${tieColor}33` : undefined,
                             }} />
                             <div style={{
-                              position: 'absolute', left: l.col * CELL_W - (justPlaced ? 6 : 4), top: topRow * CELL_H + CELL_H / 2 - (justPlaced ? 6 : 4),
+                              position: 'absolute', left: l.col * cellW - (justPlaced ? 6 : 4), top: topRow * cellH + cellH / 2 - (justPlaced ? 6 : 4),
                               width: justPlaced ? 12 : 8, height: justPlaced ? 12 : 8, borderRadius: '50%', backgroundColor: tieColor, zIndex: 3,
                               boxShadow: justPlaced ? `0 0 0 4px ${tieColor}33` : undefined, transition: 'width 200ms ease, height 200ms ease',
                             }} />
                             <div style={{
-                              position: 'absolute', left: l.col * CELL_W - (justPlaced ? 6 : 4), top: botRow * CELL_H + CELL_H / 2 - (justPlaced ? 6 : 4),
+                              position: 'absolute', left: l.col * cellW - (justPlaced ? 6 : 4), top: botRow * cellH + cellH / 2 - (justPlaced ? 6 : 4),
                               width: justPlaced ? 12 : 8, height: justPlaced ? 12 : 8, borderRadius: '50%', backgroundColor: tieColor, zIndex: 3,
                               boxShadow: justPlaced ? `0 0 0 4px ${tieColor}33` : undefined, transition: 'width 200ms ease, height 200ms ease',
                             }} />
@@ -1364,16 +1442,12 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
                         )
                       })}
 
-                      {/* BRANCH snap-guide — shown only while an anchor is armed for this rung.
-                          The junction's column is fixed the moment the first wire is tapped
-                          (see handleCellTap), so this draws that locked column as a dashed
-                          guide plus a snap-dot on every row: the user sees exactly where the
-                          wire will land and only needs to pick a ROW, never hunt for a pixel. */}
+                      {/* BRANCH snap-guide — shown only while an anchor is armed for this rung. */}
                       {branchAnchor && branchAnchor.rungId === rung.id && (
                         <>
                           <div style={{
                             position: 'absolute',
-                            left: branchAnchor.col * CELL_W - 1,
+                            left: branchAnchor.col * cellW - 1,
                             top: 0,
                             width: 2,
                             height: gridPxHeight,
@@ -1388,8 +1462,8 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
                                 key={`snap-guide-${r}`}
                                 style={{
                                   position: 'absolute',
-                                  left: branchAnchor.col * CELL_W - (isAnchorRow ? 5 : 4),
-                                  top: r * CELL_H + CELL_H / 2 - (isAnchorRow ? 5 : 4),
+                                  left: branchAnchor.col * cellW - (isAnchorRow ? 5 : 4),
+                                  top: r * cellH + cellH / 2 - (isAnchorRow ? 5 : 4),
                                   width: isAnchorRow ? 10 : 8,
                                   height: isAnchorRow ? 10 : 8,
                                   borderRadius: '50%',
@@ -1428,7 +1502,7 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
                   <div style={{ width: 3, backgroundColor: barColor, flexShrink: 0, borderRadius: 2, transition: 'background-color 180ms ease' }} />
 
                   {/* ── + − : column length control, right where the wire ends — never below the rung */}
-                  <div style={{ flexShrink: 0, height: CELL_H, display: 'flex', alignItems: 'center', gap: 4, paddingLeft: 8 }}>
+                  <div style={{ flexShrink: 0, height: cellH, display: 'flex', alignItems: 'center', gap: 4, paddingLeft: 8 }}>
                     <button onClick={e => { e.stopPropagation(); removeColumn(rung.id) }} title="Remove last column" style={colBtnStyle(isDark)}>−</button>
                     <button onClick={e => { e.stopPropagation(); addColumn(rung.id) }} title="Add a column" style={colBtnStyle(isDark)}>+</button>
                     <span style={{ fontSize: 9, color: muted, fontFamily: 'JetBrains Mono' }}>{cols}c</span>
@@ -1450,7 +1524,7 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
             )
           })}
 
-          <div style={{ padding: '8px 40px', display: 'flex', alignItems: 'center', gap: 8, width: Math.max(...rungs.map(r => r.cols), DEFAULT_COLS) * CELL_W + 80 }}>
+          <div style={{ padding: '8px 40px', display: 'flex', alignItems: 'center', gap: 8, width: Math.max(...rungs.map(r => r.cols), DEFAULT_COLS) * cellW + 80 }}>
             <div style={{ flex: 1, height: 1, backgroundColor: border }} />
             <span style={{ fontSize: 11, color: muted, fontFamily: 'JetBrains Mono' }}>END</span>
             <div style={{ flex: 1, height: 1, backgroundColor: border }} />

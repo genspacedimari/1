@@ -91,7 +91,7 @@ function Row({
   );
 }
 
-/** Stacked row — header on top, full-width control below on mobile. */
+/** Stacked row — header on top, full-width control below on mobile, aligned right on desktop. */
 function StackRow({
   icon,
   label,
@@ -104,9 +104,9 @@ function StackRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex w-full min-w-0 flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4 lg:flex-col lg:items-stretch lg:justify-start xl:flex-row xl:items-center xl:justify-between">
+    <div className="flex w-full min-w-0 flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
       <RowHeader icon={icon} label={label} description={description} />
-      <div className="w-full min-w-0 sm:w-auto sm:max-w-[60%] sm:shrink-0 lg:w-full xl:w-auto xl:max-w-[60%]">
+      <div className="w-full min-w-0 sm:w-auto sm:shrink-0 flex justify-start sm:justify-end">
         {children}
       </div>
     </div>
