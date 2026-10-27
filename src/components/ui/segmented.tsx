@@ -1,4 +1,5 @@
 import { cn } from '@/utils/cn';
+import { triggerInteractionFeedback } from '@/utils/sound';
 
 interface SegmentedProps<T extends string | number> {
   value: T;
@@ -30,7 +31,11 @@ export function Segmented<T extends string | number>({
           type="button"
           role="radio"
           aria-checked={value === opt.value}
-          onClick={() => onChange(opt.value)}
+          onClick={() => {
+            // Consume debounce slot so global listener doesn't double-fire
+            triggerInteractionFeedback('tab');
+            onChange(opt.value);
+          }}
           className={cn(
             'flex flex-1 sm:flex-initial min-h-[36px] items-center justify-center rounded-xl px-3.5 py-1.5 text-xs font-medium leading-tight whitespace-nowrap transition-all duration-200 select-none',
             value === opt.value

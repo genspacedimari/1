@@ -4,6 +4,7 @@ import { Chrome as Home, Cpu, User, Settings, Presentation, LayoutGrid } from 'l
 import { cn } from '@/utils/cn';
 import { useAuthStore } from '@/stores/authStore';
 import { useT, type TranslationKey } from '@/i18n/translations';
+import { triggerInteractionFeedback } from '@/utils/sound';
 
 interface NavItem {
   to: string;
@@ -67,6 +68,7 @@ export function SidebarNav() {
           key={item.to}
           to={item.to}
           end={item.end}
+          onClick={() => triggerInteractionFeedback('nav')}
           className={({ isActive }) =>
             cn(
               'relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-colors',
@@ -104,6 +106,7 @@ export function BottomNav() {
             key={item.to}
             to={item.to}
             end={item.end}
+            onClick={() => triggerInteractionFeedback('nav')}
             className="relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium"
           >
             {({ isActive }) => (

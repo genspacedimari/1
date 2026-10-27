@@ -1,0 +1,1 @@
+import{j as e}from"./animation-DLY34XqA.js";import"./react-vendor-Bs0x6N8a.js";function a(){return e.jsxs("div",{className:"mx-auto max-w-md",children:[e.jsx("h2",{className:"text-xl font-semibold",children:"Materials"}),e.jsx("p",{className:"mt-2 text-sm text-muted-foreground",children:"Menyusul di fase berikutnya."})]})}export{a as default};

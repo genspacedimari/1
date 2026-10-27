@@ -1,6 +1,6 @@
 import { cn } from '@/utils/cn';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { playToggleOnSound, playToggleOffSound } from '@/utils/sound';
+import { playToggleOnSound, playToggleOffSound, triggerInteractionFeedback } from '@/utils/sound';
 import { triggerHapticIfEnabled } from '@/utils/haptics';
 
 interface SwitchProps {
@@ -18,6 +18,9 @@ export function Switch({ checked, onChange, ...rest }: SwitchProps) {
 
   const handleClick = () => {
     const next = !checked;
+    // Consume the debounce slot so the global capture listener doesn't also fire
+    triggerInteractionFeedback('toggle');
+    // Play the specific on/off tone (the global listener skips 'toggle' sounds)
     if (soundEffects) (next ? playToggleOnSound : playToggleOffSound)();
     triggerHapticIfEnabled(hapticFeedback, 10);
     onChange(next);

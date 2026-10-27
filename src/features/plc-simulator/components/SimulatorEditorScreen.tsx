@@ -1382,6 +1382,9 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
                         return (
                           <div
                             key={`r${r}-c${c}`}
+                            role="button"
+                            data-interactive=""
+                            tabIndex={0}
                             onClick={e => { e.stopPropagation(); handleCellTap(rung.id, r, c) }}
                             onDoubleClick={e => { e.stopPropagation(); handleCellDoubleTap(rung.id, r, c) }}
                             style={{
@@ -1423,7 +1426,15 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
                         const justPlaced = !!snapFlash && snapFlash.rungId === rung.id && snapFlash.col === l.col &&
                           ((snapFlash.rowA === l.rowA && snapFlash.rowB === l.rowB) || (snapFlash.rowA === l.rowB && snapFlash.rowB === l.rowA))
                         return (
-                          <div key={`link-${li}`} onClick={e => { e.stopPropagation(); linkRows(rung.id, l.rowA, l.rowB, l.col) }} title="Tap to remove this junction" style={{ cursor: 'pointer' }}>
+                          <div
+                            key={`link-${li}`}
+                            role="button"
+                            data-interactive=""
+                            tabIndex={0}
+                            onClick={e => { e.stopPropagation(); linkRows(rung.id, l.rowA, l.rowB, l.col) }}
+                            title="Tap to remove this junction"
+                            style={{ cursor: 'pointer' }}
+                          >
                             <div style={{
                               position: 'absolute', left: l.col * cellW - 1, top, width: 2, height, backgroundColor: tieColor, zIndex: 2,
                               boxShadow: justPlaced ? `0 0 0 3px ${tieColor}33` : undefined,
