@@ -88,6 +88,12 @@ export async function gradeLadderProgram(
   const project = parseProject(studentProgramJson);
   if (!project || testCases.length === 0) return { passed: 0, total: testCases.length, percent: 0, failed: ['Program/test cases tidak valid'] };
 
+  const activeRungs = project.rungs.filter((r) => r.elements && r.elements.length > 0);
+  const cleanProject: LadderProject = {
+    ...project,
+    rungs: activeRungs.length > 0 ? activeRungs : project.rungs,
+  };
+
   let passed = 0;
   let passedWeight = 0;
   let totalWeight = 0;
@@ -98,7 +104,7 @@ export async function gradeLadderProgram(
     const weight = Number.isFinite(testCase.weight) && testCase.weight > 0 ? testCase.weight : 1;
     totalWeight += weight;
     try {
-      runtime.loadProject(project);
+      runtime.loadProject(cleanProject);
       for (const [address, value] of Object.entries(testCase.inputs)) {
         const m = /^I(\d+)$/i.exec(address);
         if (m) runtime.setInput(Number(m[1]), value);
@@ -243,50 +249,64 @@ export function autoGenerateTestCasesFromAnswer(answerProgramJson: string): Ladd
   const outputList = Array.from(outputs).sort();
   if (inputList.length === 0 && outputList.length === 0) return [];
 
+  const activeRungs = project.rungs.filter((r) => r.elements && r.elements.length > 0);
+  const cleanProject: LadderProject = {
+    ...project,
+    rungs: activeRungs.length > 0 ? activeRungs : project.rungs,
+  };
+
   const runtime = new PlcRuntime(100);
   const testCases: LadderTestCase[] = [];
 
-  const runAndRecord = (name: string, inMap: Record<string, boolean>, durationMs = 0): LadderTestCase => {
-    runtime.loadProject(project);
-    for (const [addr, val] of Object.entries(inMap)) {
-      const m = /^I(\d+)$/i.exec(addr);
-      if (m) runtime.setInput(Number(m[1]), val);
-    }
-    const scans = Math.max(1, Math.ceil(durationMs / 100));
-    for (let i = 0; i < scans; i++) runtime.step();
-    const snap = runtime.getSnapshot();
+  const runAndRecord = (name: string, inMap: Record<string, boolean>, durationMs = 0): LadderTestCase | null => {
+    try {
+      runtime.loadProject(cleanProject);
+      for (const [addr, val] of Object.entries(inMap)) {
+        const m = /^I(\d+)$/i.exec(addr);
+        if (m) runtime.setInput(Number(m[1]), val);
+      }
+      const scans = Math.max(1, Math.ceil(durationMs / 100));
+      for (let i = 0; i < scans; i++) runtime.step();
+      const snap = runtime.getSnapshot();
 
-    const expectedOutputs: Record<string, boolean> = {};
-    for (const o of outputList) {
-      expectedOutputs[o] = readAddress(snap, o);
-    }
+      const expectedOutputs: Record<string, boolean> = {};
+      for (const o of outputList) {
+        expectedOutputs[o] = readAddress(snap, o);
+      }
 
-    return {
-      id: `tc-auto-${Date.now()}-${testCases.length + 1}`,
-      name,
-      durationMs,
-      weight: 1,
-      inputs: inMap,
-      expectedOutputs,
-    };
+      return {
+        id: `tc-auto-${Date.now()}-${testCases.length + 1}`,
+        name,
+        durationMs,
+        weight: 1,
+        inputs: inMap,
+        expectedOutputs,
+      };
+    } catch (err) {
+      console.warn('[ladderGrading] Failed to simulate test case scenario:', err);
+      return null;
+    }
   };
 
   // Case 1: All inputs OFF
   const allOff: Record<string, boolean> = {};
   inputList.forEach((inp) => { allOff[inp] = false; });
-  testCases.push(runAndRecord('Kondisi Awal (Semua Input OFF)', allOff));
+  const case1 = runAndRecord('Kondisi Awal (Semua Input OFF)', allOff);
+  if (case1) testCases.push(case1);
 
   // Case 2: Each input activated individually
   inputList.forEach((inp) => {
     const singleOn = { ...allOff, [inp]: true };
-    testCases.push(runAndRecord(`Uji Input ${inp} Aktif (ON)`, singleOn));
+    const tc = runAndRecord(`Uji Input ${inp} Aktif (ON)`, singleOn);
+    if (tc) testCases.push(tc);
   });
 
   // Case 3: If multiple inputs, test all ON
   if (inputList.length > 1) {
     const allOn: Record<string, boolean> = {};
     inputList.forEach((inp) => { allOn[inp] = true; });
-    testCases.push(runAndRecord('Semua Input Aktif (ON)', allOn));
+    const tc = runAndRecord('Semua Input Aktif (ON)', allOn);
+    if (tc) testCases.push(tc);
   }
 
   return testCases;
@@ -327,17 +347,32 @@ export async function gradeLadderDetailed(
   }
 
   // Logic test cases check
-  const testCases = (question.testCases && question.testCases.length > 0)
+  let testCases = (question.testCases && question.testCases.length > 0)
     ? question.testCases
-    : (answerProject ? autoGenerateTestCasesFromAnswer(JSON.stringify(answerProject)) : []);
+    : [];
+
+  if (testCases.length === 0 && answerProject) {
+    try {
+      testCases = autoGenerateTestCasesFromAnswer(JSON.stringify(answerProject));
+    } catch (err) {
+      console.warn('[ladderGrading] auto-generation of test cases failed:', err);
+      testCases = [];
+    }
+  }
 
   if (testCases.length > 0) {
-    const logic = await gradeLadderProgram(studentLadderJson, testCases);
-    logicScore = logic.percent;
-    if (logic.failed.length > 0) {
-      feedback.push(`Gagal pada pengujian logika: ${logic.failed.join(', ')}`);
-    } else {
-      feedback.push(`Pengujian logika: ${logic.passed}/${logic.total} skenario pengujian berhasil.`);
+    try {
+      const logic = await gradeLadderProgram(studentLadderJson, testCases);
+      logicScore = logic.percent;
+      if (logic.failed.length > 0) {
+        feedback.push(`Gagal pada pengujian logika: ${logic.failed.join(', ')}`);
+      } else {
+        feedback.push(`Pengujian logika: ${logic.passed}/${logic.total} skenario pengujian berhasil.`);
+      }
+    } catch (err) {
+      console.warn('[ladderGrading] gradeLadderProgram error:', err);
+      logicScore = 0;
+      feedback.push('Terjadi kendala saat pengujian logika rangkaian.');
     }
   } else {
     logicScore = structureScore;

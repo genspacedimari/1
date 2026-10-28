@@ -137,7 +137,12 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
     setImportedFromLabel(label);
 
     // Auto-derive realistic test cases directly from the imported program
-    const autoTests = autoGenerateTestCasesFromAnswer(json);
+    let autoTests: LadderTestCase[] = [];
+    try {
+      autoTests = autoGenerateTestCasesFromAnswer(json);
+    } catch (err) {
+      console.warn('[LadderChallengePanel] autoGenerateTestCases error:', err);
+    }
 
     return {
       ...value,
@@ -194,7 +199,12 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
   // Auto-generate test cases from the answer program
   const handleAutoGenerateTestCases = () => {
     if (!value.answerProgramJson) return;
-    const generated = autoGenerateTestCasesFromAnswer(value.answerProgramJson);
+    let generated: LadderTestCase[] = [];
+    try {
+      generated = autoGenerateTestCasesFromAnswer(value.answerProgramJson);
+    } catch (err) {
+      console.warn('[LadderChallengePanel] handleAutoGenerateTestCases error:', err);
+    }
     if (generated.length === 0) {
       alert('Tidak ditemukan alamat Input (I) atau Output (O) pada program kunci jawaban.');
       return;

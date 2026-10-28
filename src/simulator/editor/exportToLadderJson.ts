@@ -42,6 +42,21 @@ function buildRungGraph(rung: EditorRung): Rung {
     }
   }
 
+  // If startIds is empty but elements exist, ensure non-targeted elements become startIds
+  if (startIds.size === 0 && Object.keys(elements).length > 0) {
+    const targeted = new Set<string>();
+    for (const el of Object.values(elements)) {
+      for (const t of el.connectsTo ?? []) targeted.add(t);
+    }
+    for (const el of Object.values(elements)) {
+      if (!targeted.has(el.id)) startIds.add(el.id);
+    }
+    if (startIds.size === 0) {
+      const firstId = Object.keys(elements)[0];
+      if (firstId) startIds.add(firstId);
+    }
+  }
+
   return { id: rung.id, startIds: [...startIds], elements: Object.values(elements) };
 }
 
@@ -51,7 +66,8 @@ export function exportToLadderJson(doc: EditorDocument, options: { validate?: bo
 
   for (const rungId of doc.rungOrder) {
     const rung = doc.rungs[rungId];
-    if (rung.outputs.length === 0) {
+    const isTotallyBlank = rung.outputs.length === 0 && rung.rows.every((r) => r.cells.length === 0);
+    if (!isTotallyBlank && rung.outputs.length === 0) {
       errors.push(`Rung tidak punya output (coil/timer/counter) — tambahkan minimal satu.`);
     }
   }

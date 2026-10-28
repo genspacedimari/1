@@ -17,6 +17,11 @@ const ADDRESSED_KINDS = new Set(['CONTACT', 'COIL', 'TIMER', 'COUNTER']);
  * times a second).
  */
 export function validateRung(rung: Rung): void {
+  // Empty rung (0 elements) has no logic and carries no power — safe pass-through
+  if (!rung.elements || rung.elements.length === 0) {
+    return;
+  }
+
   const ids = new Set(rung.elements.map((el) => el.id));
 
   if (ids.size !== rung.elements.length) {
@@ -136,8 +141,17 @@ export function validateRung(rung: Rung): void {
     }
   }
 
-  if (rung.startIds.length === 0) {
-    throw new LadderValidationError(`Rung "${rung.id}" has no startIds — nothing connects to the left rail.`);
+  if (!rung.startIds || rung.startIds.length === 0) {
+    // If elements exist but startIds wasn't populated (e.g. newly created/imported rung),
+    // auto-recover by connecting elements not targeted by any connection as startIds
+    const roots = rung.elements.filter((el) => el.kind !== 'COMMENT' && !referenced.has(el.id));
+    if (roots.length > 0) {
+      rung.startIds = roots.map((el) => el.id);
+    } else if (rung.elements.length > 0) {
+      rung.startIds = [rung.elements[0].id];
+    } else {
+      return;
+    }
   }
 
   // Phase 5.2: "Floating Wire" / unreachable-island detection — every

@@ -130,6 +130,21 @@ function convertRung(gridRung: GridRung, rungIndex: number, warnings: string[]):
     else if (srcFromB && targetA) connect(srcFromB, targetA);
   }
 
+  // If startIds is empty but elements exist (e.g. elements started at column > 0),
+  // pick elements with no predecessors
+  if (startIds.size === 0 && elements.length > 0) {
+    const targeted = new Set<string>();
+    for (const el of elements) {
+      for (const t of el.connectsTo ?? []) targeted.add(t);
+    }
+    for (const el of elements) {
+      if (!targeted.has(el.id)) startIds.add(el.id);
+    }
+    if (startIds.size === 0) {
+      startIds.add(elements[0].id);
+    }
+  }
+
   return { id: generateId('rung'), startIds: Array.from(startIds), elements };
 }
 
