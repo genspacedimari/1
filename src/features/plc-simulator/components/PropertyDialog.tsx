@@ -7,6 +7,8 @@ interface PropertyDialogProps {
   element: LadderElement;
   onClose: () => void;
   onSave: (updates: { address?: { type: AddressType; number: number }; comment?: string; alias?: string }) => void;
+  onMakePlaceholder?: () => void;
+  onRestore?: () => void;
 }
 
 /** Valid address types per element kind — a CONTACT can read any bit, but a
@@ -35,16 +37,18 @@ function allowedTypesFor(element: LadderElement): AddressType[] {
  * JetBrains Mono inputs) to match the simulator screen's other dialogs —
  * behavior and validation are unchanged from before.
  */
-export function PropertyDialog({ element, onClose, onSave }: PropertyDialogProps) {
+export function PropertyDialog({ element, onClose, onSave, onMakePlaceholder, onRestore }: PropertyDialogProps) {
   const isDark = useSimIsDark();
   const p = simPalette(isDark);
   const hasAddress = 'address' in element && !!element.address;
   const allowedTypes = allowedTypesFor(element);
 
-  const [addressType, setAddressType] = useState<AddressType>(hasAddress ? element.address!.type : allowedTypes[0]);
+  const [addressType, setAddressType] = useState<AddressType>(hasAddress ? element.address!.type : (allowedTypes[0] || 'I'));
   const [addressNumber, setAddressNumber] = useState(hasAddress ? element.address!.number : 1);
   const [comment, setComment] = useState(element.comment ?? '');
   const [alias, setAlias] = useState(element.alias ?? '');
+
+  const isPlaceholder = element.kind === 'PLACEHOLDER';
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -81,13 +85,60 @@ export function PropertyDialog({ element, onClose, onSave }: PropertyDialogProps
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: p.text, fontFamily: SIM_FONT_SANS }}>Properti Elemen</h3>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: p.text, fontFamily: SIM_FONT_SANS }}>
+            {isPlaceholder ? 'Komponen Soal [ KOSONG ]' : 'Properti Elemen'}
+          </h3>
           <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: p.muted, fontSize: 20, padding: 4 }}>
             ✕
           </button>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {isPlaceholder && (
+            <div style={{ borderRadius: 12, border: '1px dashed #F59E0B', backgroundColor: 'rgba(245,158,11,0.08)', padding: 12 }}>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#D97706', fontFamily: SIM_FONT_SANS }}>
+                [ ? KOSONG ] — Placeholder Tantangan Soal
+              </p>
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: p.muted, fontFamily: SIM_FONT_SANS }}>
+                Komponen ini sengaja dikosongkan agar siswa harus melengkapinya sesuai logika program asli.
+              </p>
+              {onRestore && (
+                <button
+                  type="button"
+                  onClick={() => { onRestore(); onClose(); }}
+                  style={{
+                    marginTop: 10, width: '100%', height: 38, borderRadius: 10, border: '1px solid #3B82F6',
+                    backgroundColor: 'rgba(59,130,246,0.1)', color: '#2563EB', fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  🔄 Kembalikan ke Komponen Asli
+                </button>
+              )}
+            </div>
+          )}
+
+          {!isPlaceholder && onMakePlaceholder && (
+            <div style={{ borderRadius: 12, border: '1px dashed #F59E0B', backgroundColor: 'rgba(245,158,11,0.08)', padding: 12 }}>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#D97706', fontFamily: SIM_FONT_SANS }}>
+                Jadikan Bagian Soal (Kosongkan)
+              </p>
+              <p style={{ margin: '4px 0 10px', fontSize: 11, color: p.muted, fontFamily: SIM_FONT_SANS }}>
+                Komponen ini akan diubah menjadi slot kosong [ KOSONG ] untuk dijawab oleh siswa.
+              </p>
+              <button
+                type="button"
+                onClick={() => { onMakePlaceholder(); onClose(); }}
+                style={{
+                  width: '100%', height: 38, borderRadius: 10, border: 'none',
+                  backgroundColor: '#F59E0B', color: '#1B1B1B', fontSize: 12, fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                ✂️ Kosongkan Komponen Ini
+              </button>
+            </div>
+          )}
           {hasAddress && (
             <div>
               <label style={{ fontSize: 13, fontWeight: 500, color: p.text, fontFamily: SIM_FONT_SANS, display: 'block', marginBottom: 6 }}>

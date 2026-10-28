@@ -248,9 +248,14 @@ function mapQuestion(
       ? {
           id: ladder.id,
           mode: ladder.mode as LadderQuestionData['mode'],
+          challengeType: (ladder.challenge_type as LadderQuestionData['challengeType']) ?? null,
+          masterProgramId: ladder.master_program_id ?? null,
           ladderJson: ladder.ladder_json,
+          starterLadderJson: ladder.starter_ladder_json ?? ladder.ladder_json,
           expectedOutput: ladder.expected_output,
           answerLadderJson: ladder.answer_ladder_json,
+          answerProgramJson: ladder.answer_program_json ?? ladder.answer_ladder_json,
+          testCases: Array.isArray(ladder.test_cases) ? (ladder.test_cases as any) : [],
         }
       : null,
   };

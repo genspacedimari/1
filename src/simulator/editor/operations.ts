@@ -168,3 +168,101 @@ export function updateElementProperties(
   rung.elements[elementId] = updated;
   return next;
 }
+
+export function makePlaceholder(
+  doc: EditorDocument,
+  rungId: string,
+  elementId: string
+): EditorDocument {
+  const next = cloneDoc(doc);
+  const rung = getRung(next, rungId);
+  const el = rung.elements[elementId];
+  if (!el) throw new EditorOperationError(`Element "${elementId}" not found.`);
+  const isOut = rung.outputs.includes(elementId);
+  const placeholderEl: LadderElement = {
+    id: elementId,
+    gridX: el.gridX,
+    gridY: el.gridY,
+    connectsTo: el.connectsTo ?? [],
+    kind: 'PLACEHOLDER',
+    placeholderType: isOut ? 'COIL' : 'CONTACT',
+    label: 'KOSONG',
+    originalElement: {
+      kind: el.kind,
+      mode: 'mode' in el ? (el as { mode?: string }).mode : undefined,
+      address: 'address' in el ? (el as { address?: Address }).address : undefined,
+      coilMode: 'coilMode' in el ? (el as { coilMode?: string }).coilMode : undefined,
+      alias: el.alias,
+      comment: el.comment,
+    },
+    alias: 'KOSONG',
+  };
+  rung.elements[elementId] = placeholderEl;
+  return next;
+}
+
+export function restoreFromPlaceholder(
+  doc: EditorDocument,
+  rungId: string,
+  elementId: string
+): EditorDocument {
+  const next = cloneDoc(doc);
+  const rung = getRung(next, rungId);
+  const el = rung.elements[elementId];
+  if (!el || el.kind !== 'PLACEHOLDER' || !el.originalElement) {
+    return next;
+  }
+  const orig = el.originalElement;
+  let restored: LadderElement;
+  if (orig.kind === 'CONTACT' && orig.address) {
+    restored = {
+      id: elementId,
+      gridX: el.gridX,
+      gridY: el.gridY,
+      connectsTo: el.connectsTo,
+      kind: 'CONTACT',
+      mode: (orig.mode as any) || 'NO',
+      address: orig.address,
+      alias: orig.alias,
+      comment: orig.comment,
+    };
+  } else if (orig.kind === 'COIL' && orig.address) {
+    restored = {
+      id: elementId,
+      gridX: el.gridX,
+      gridY: el.gridY,
+      connectsTo: el.connectsTo,
+      kind: 'COIL',
+      coilMode: (orig.coilMode as any) || 'NORMAL',
+      address: orig.address,
+      alias: orig.alias,
+      comment: orig.comment,
+    };
+  } else {
+    return next;
+  }
+  rung.elements[elementId] = restored;
+  return next;
+}
+
+export function replaceElement(
+  doc: EditorDocument,
+  rungId: string,
+  elementId: string,
+  newElement: LadderElement
+): EditorDocument {
+  const next = cloneDoc(doc);
+  const rung = getRung(next, rungId);
+  const el = rung.elements[elementId];
+  if (!el) throw new EditorOperationError(`Element "${elementId}" not found.`);
+  const replaced: LadderElement = {
+    ...newElement,
+    id: elementId,
+    gridX: el.gridX,
+    gridY: el.gridY,
+    connectsTo: el.connectsTo ?? [],
+  };
+  rung.elements[elementId] = replaced;
+  return next;
+}
+

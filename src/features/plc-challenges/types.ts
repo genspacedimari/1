@@ -13,11 +13,17 @@ export interface MasterProgram {
 export interface LadderChallengeDraft {
   challengeType: LadderChallengeType;
   masterProgramId: string | null;
+  sourceProjectId?: string | null;
   baseProgramJson: string | null;
   starterProgramJson: string | null;
   answerProgramJson: string | null;
   expectedOutput: string | null;
   testCases: LadderTestCase[];
+  gradingConfig?: {
+    checkStructure?: boolean;
+    checkLogic?: boolean;
+    allowAlternativeLogic?: boolean;
+  };
 }
 
 export function createTestCase(index = 1): LadderTestCase {

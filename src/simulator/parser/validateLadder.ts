@@ -61,6 +61,11 @@ export function validateRung(rung: Rung): void {
     if (el.kind === 'BRANCH_END') branchEndIds.set(el.branchId, el.id);
 
     if (el.kind === 'COMMENT') continue;
+    if (el.kind === 'PLACEHOLDER') {
+      // Placeholders in challenges are allowed as input cells (with outgoing connections)
+      // or as output placeholders (terminal, no outgoing connections).
+      continue;
+    }
 
     // A non-terminal element with nowhere to go is a dead end — very likely
     // an unfinished edit rather than intentional, so we fail loudly.

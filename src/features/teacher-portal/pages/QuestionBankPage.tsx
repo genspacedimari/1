@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, Search, Copy, Archive, Trash2, Eye, RotateCcw, Download, Upload, FolderOpen, ClipboardList, ChevronDown } from 'lucide-react';
+import { Plus, Search, Copy, Archive, Trash2, Eye, RotateCcw, Download, Upload, FolderOpen, ClipboardList, ChevronDown, Cpu, X, Layers, AlertCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ActionMenu } from '@/components/ui/action-menu';
 import { useTeacherStore } from '../store';
+import { useProjectStore } from '@/features/plc-simulator/projectStore';
 import { exportQuestionsJSON, exportQuestionsCSV, exportQuestionsExcel } from '../importExport';
 import { QUESTION_TYPE_LABELS, DIFFICULTY_LABELS, type Difficulty, type QuestionType, type Question } from '../types';
 import { cn } from '@/utils/cn';
@@ -19,6 +20,9 @@ export function QuestionBankPage() {
     questions, archivedQuestions, questionSets, categories, loading,
     loadQuestions, loadQuestionSets, loadCategories, duplicateQuestion, archiveQuestion, deleteQuestion,
   } = useTeacherStore();
+  const { projects: simulatorProjects, loading: simulatorLoading, loadProjects: loadSimulatorProjects } = useProjectStore();
+  const [showSimulatorImportModal, setShowSimulatorImportModal] = useState(false);
+  const [simulatorSearch, setSimulatorSearch] = useState('');
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<QuestionType | 'all'>('all');
   const [filterDifficulty, setFilterDifficulty] = useState<Difficulty | 'all'>('all');
@@ -69,7 +73,37 @@ export function QuestionBankPage() {
             ]}
           />
           <button onClick={()=>navigate('/teacher/questions/import')} className="flex items-center gap-2 rounded-2xl border border-border px-3 py-2 text-sm font-medium hover:bg-muted/30 dark:border-border-dark" style={{minHeight:44}}><Upload size={16}/> Import</button>
-          <button onClick={()=>navigate('/teacher/questions/new')} className="flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90" style={{minHeight:44}}><Plus size={16}/> New</button>
+          <ActionMenu
+            align="right"
+            menuWidth={240}
+            trigger={({ onClick, open }) => (
+              <button
+                onClick={onClick}
+                className={cn(
+                  'flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:opacity-90',
+                  open && 'ring-2 ring-primary/40'
+                )}
+                style={{ minHeight: 44 }}
+              >
+                <Plus size={16} /> New <ChevronDown size={14} className={cn('transition-transform', open && 'rotate-180')} />
+              </button>
+            )}
+            items={[
+              {
+                icon: Plus,
+                label: 'Buat Soal Secara Manual',
+                onClick: () => navigate('/teacher/questions/new'),
+              },
+              {
+                icon: Cpu,
+                label: 'Import dari Simulator (Ladder Logic)',
+                onClick: () => {
+                  loadSimulatorProjects();
+                  setShowSimulatorImportModal(true);
+                },
+              },
+            ]}
+          />
         </div>
       </div>
 
@@ -93,6 +127,135 @@ export function QuestionBankPage() {
       </>}
 
       <ConfirmDialog open={!!confirmDelete} title="Delete Question" message="This will permanently delete this question. This cannot be undone." confirmLabel="Delete" destructive onConfirm={()=>{if(confirmDelete)deleteQuestion(confirmDelete);setConfirmDelete(null)}} onCancel={()=>setConfirmDelete(null)}/>
+
+      {/* Modal: Import Program dari Simulator */}
+      {showSimulatorImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[88vh] w-full max-w-2xl flex-col rounded-3xl border border-border bg-surface p-6 shadow-2xl dark:border-border-dark dark:bg-surface-dark">
+            <div className="flex items-center justify-between border-b border-border pb-4 dark:border-border-dark">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <Cpu size={22} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Import Program dari Simulator</h2>
+                  <p className="text-xs text-muted-foreground">Pilih program yang sudah Anda buat di simulator untuk dijadikan kunci jawaban & soal latihan</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSimulatorImportModal(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/40"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="my-4">
+              <div className="relative">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={simulatorSearch}
+                  onChange={(e) => setSimulatorSearch(e.target.value)}
+                  placeholder="Cari program simulator berdasarkan nama atau deskripsi..."
+                  className="w-full rounded-2xl border border-border bg-surface pl-9 pr-4 py-2.5 text-sm outline-none focus:border-primary dark:border-border-dark dark:bg-surface-dark"
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-1 space-y-3">
+              {simulatorLoading ? (
+                <div className="py-12 text-center text-sm text-muted-foreground">Memuat program simulator...</div>
+              ) : simulatorProjects.length === 0 ? (
+                <div className="py-12 text-center">
+                  <AlertCircle size={36} className="mx-auto text-muted-foreground/40 mb-2" />
+                  <p className="text-sm font-semibold">Belum Ada Program Simulator</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                    Anda belum memiliki program Ladder Logic yang disimpan di simulator. Buka menu PLC Simulator untuk membuat dan menguji program terlebih dahulu.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowSimulatorImportModal(false);
+                      navigate('/plc-simulator');
+                    }}
+                    className="mt-4 rounded-2xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow"
+                  >
+                    Buka PLC Simulator
+                  </button>
+                </div>
+              ) : (
+                simulatorProjects
+                  .filter((p) => {
+                    if (!simulatorSearch.trim()) return true;
+                    const q = simulatorSearch.toLowerCase();
+                    return p.name.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q));
+                  })
+                  .map((p) => {
+                    let rungCount = 0;
+                    try {
+                      if (p.ladderJson) {
+                        const parsed = JSON.parse(p.ladderJson);
+                        if (Array.isArray(parsed?.rungs)) rungCount = parsed.rungs.length;
+                        else if (Array.isArray(parsed)) rungCount = parsed.length;
+                      }
+                    } catch {}
+                    return (
+                      <div
+                        key={p.id}
+                        className="flex items-center justify-between gap-4 rounded-2xl border border-border p-4 transition-all hover:border-primary/40 hover:bg-muted/10 dark:border-border-dark"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-sm truncate">{p.name}</h3>
+                            <Badge variant="outline" className="text-[10px] uppercase font-mono">{p.plcType}</Badge>
+                            {rungCount > 0 && (
+                              <Badge variant="muted" className="text-[10px]">
+                                <Layers size={10} className="mr-1 inline" /> {rungCount} Rung
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground line-clamp-1">
+                            {p.description || 'Program rangkaian ladder logic dari simulator.'}
+                          </p>
+                          <p className="mt-1 text-[11px] text-muted-foreground/70">
+                            Diperbarui: {new Date(p.updatedAt || p.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setShowSimulatorImportModal(false);
+                            navigate(`/teacher/questions/new?type=ladder&importSimulatorId=${p.id}`);
+                          }}
+                          className="shrink-0 flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 shadow-sm"
+                        >
+                          <Plus size={14} /> Jadikan Soal
+                        </button>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between border-t border-border pt-3 dark:border-border-dark">
+              <button
+                onClick={() => {
+                  setShowSimulatorImportModal(false);
+                  navigate('/plc-simulator');
+                }}
+                className="text-xs text-primary font-medium hover:underline"
+              >
+                + Buka Simulator untuk Buat Rangkaian Baru
+              </button>
+              <button
+                onClick={() => setShowSimulatorImportModal(false)}
+                className="rounded-xl border border-border px-4 py-2 text-xs font-medium hover:bg-muted/30 dark:border-border-dark"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

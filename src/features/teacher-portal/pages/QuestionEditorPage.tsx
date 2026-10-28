@@ -12,6 +12,7 @@ import { cn } from '@/utils/cn';
 import { LadderChallengePanel } from '@/features/plc-challenges/LadderChallengePanel';
 import { fetchMasterPrograms } from '@/features/plc-challenges/services';
 import type { LadderChallengeDraft } from '@/features/plc-challenges/types';
+import { useProjectStore } from '@/features/plc-simulator/projectStore';
 
 export function QuestionEditorPage() {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export function QuestionEditorPage() {
   const presetSetId = searchParams.get('setId');
   const presetType = searchParams.get('type') as QuestionType | null;
   const presetMasterProgramId = searchParams.get('masterProgramId');
+  const presetSimulatorId = searchParams.get('importSimulatorId');
   const isEdit = !!id && id !== 'new';
   const {
     categories, loadQuestions, loadCategories, createQuestion, updateQuestion,
@@ -74,6 +76,15 @@ export function QuestionEditorPage() {
           testCases: [],
         });
       }).catch((err) => console.error('[QUESTION_EDITOR] preload master program failed', err));
+    }
+    if (!isEdit && presetType === 'ladder' && presetSimulatorId) {
+      useProjectStore.getState().loadProjects().then(() => {
+        const proj = useProjectStore.getState().projects.find((p) => p.id === presetSimulatorId);
+        if (proj) {
+          setQuestionText((prev) => prev || `Lengkapi rangkaian Ladder Logic: ${proj.name}`);
+          setExplanation((prev) => prev || 'Lengkapi komponen yang hilang pada rangkaian agar sesuai dengan logika program aslinya.');
+        }
+      }).catch((err) => console.error('[QUESTION_EDITOR] preload simulator project failed', err));
     }
     if (isEdit) {
       loadQuestions().then(() => {

@@ -97,6 +97,9 @@ function resolveElementOutput(element: LadderElement, poweredIn: boolean, state:
       return poweredIn;
     case 'COMMENT':
       return poweredIn;
+    case 'PLACEHOLDER':
+      // A placeholder represents an unfilled gap in the circuit — it blocks power flow.
+      return false;
     default: {
       const _exhaustive: never = element;
       return _exhaustive;

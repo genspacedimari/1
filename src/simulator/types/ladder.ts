@@ -113,6 +113,20 @@ export interface CommentElement extends Omit<BaseElement, 'connectsTo'> {
   connectsTo?: string[]; // comments never carry power; kept optional/unused
 }
 
+export interface PlaceholderElement extends BaseElement {
+  kind: 'PLACEHOLDER';
+  placeholderType?: 'CONTACT' | 'COIL';
+  label?: string;
+  originalElement?: {
+    kind: string;
+    mode?: string;
+    address?: Address;
+    coilMode?: string;
+    alias?: string;
+    comment?: string;
+  };
+}
+
 export type LadderElement =
   | ContactElement
   | CoilElement
@@ -121,7 +135,8 @@ export type LadderElement =
   | WireElement
   | BranchStartElement
   | BranchEndElement
-  | CommentElement;
+  | CommentElement
+  | PlaceholderElement;
 
 export interface Rung {
   id: string;
