@@ -2,6 +2,7 @@ import type { QuizQuestion, LadderTestCase } from './types';
 import { PlcRuntime } from '@/simulator/runtime/plcRuntime';
 import type { LadderProject } from '@/simulator/types/ladder';
 import { parseLadder } from '@/simulator/parser/parseLadder';
+import { importFromGridJson } from '@/simulator/editor/importFromGridJson';
 
 interface LegacySignature {
   startIds: string[];
@@ -43,9 +44,14 @@ function legacySignaturesEqual(a: LegacySignature[], b: LegacySignature[]): bool
 
 function parseProject(json: string): LadderProject | null {
   try {
-    const parsed = JSON.parse(json) as LadderProject;
-    if (!parsed || !Array.isArray(parsed.rungs)) return null;
-    return parsed;
+    const parsed = JSON.parse(json);
+    if (!parsed) return null;
+    if (Array.isArray(parsed.rungs)) return parsed as LadderProject;
+    if (Array.isArray(parsed) && parsed.length > 0 && 'rows' in parsed[0]) {
+      const converted = importFromGridJson(json, 'Simulator Grid');
+      return converted ? converted.project : null;
+    }
+    return null;
   } catch {
     return null;
   }

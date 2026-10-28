@@ -165,7 +165,10 @@ export default function LadderAnswerPage() {
         <LadderEditorScreen
           key={initialJson ? initialJson.slice(0, 32) : 'empty'}
           initialProject={project}
+          initialLadderJson={initialJson}
+          isStudentMode={true}
           onSaveLadder={handleApply}
+          onChangeLadder={handleApply}
           saveLabel="Terapkan Jawaban"
         />
       </div>

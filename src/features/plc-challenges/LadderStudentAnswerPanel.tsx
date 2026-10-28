@@ -100,8 +100,10 @@ export function LadderStudentAnswerPanel({ question, value, onChange }: Props) {
           <LadderEditorScreen
             key={initialJson ? initialJson.slice(0, 32) : 'empty'}
             initialProject={project}
+            initialLadderJson={initialJson}
             readOnly={false}
             isTeacherMode={false}
+            isStudentMode={true}
             onChangeLadder={onChange}
             onSaveLadder={onChange}
             saveLabel="Simpan Program"

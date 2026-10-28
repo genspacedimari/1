@@ -4,12 +4,19 @@ import type { PlcProject } from '../projectTypes'
 import { downloadFile, sanitizeFilename, EXPORT_FORMAT_VERSION } from '../projectTypes'
 import type { ProjectExportEnvelope } from '../projectTypes'
 
-interface SimulatorEditorScreenProps {
-  projectName: string
+export interface SimulatorEditorScreenProps {
+  projectName?: string
   theme: string
   project?: PlcProject
-  onBack: () => void
+  onBack?: () => void
   onSaveLadder?: (ladderJson: string) => void
+  initialLadderJson?: string | null
+  onChangeLadder?: (ladderJson: string) => void
+  readOnly?: boolean
+  isEmbedded?: boolean
+  isTeacherMode?: boolean
+  isStudentMode?: boolean
+  saveLabel?: string
 }
 
 // ===========================
@@ -35,7 +42,7 @@ const MAX_COLS = 24
 const DEFAULT_CELL_W = 64
 const DEFAULT_CELL_H = 52
 
-type CellType = 'WIRE' | 'NO' | 'NC' | 'COIL' | 'SET' | 'RST' | 'TON' | 'TOF' | 'TP' | 'CTU' | 'CTD' | 'RES' | 'MEM'
+type CellType = 'WIRE' | 'NO' | 'NC' | 'COIL' | 'SET' | 'RST' | 'TON' | 'TOF' | 'TP' | 'CTU' | 'CTD' | 'RES' | 'MEM' | 'PLACEHOLDER'
 type ToolId = CellType | 'SELECT' | 'DELETE' | 'BRANCH'
 
 interface GridCell {
@@ -43,6 +50,8 @@ interface GridCell {
   address: string
   preset?: number
   timeUnit?: string
+  originalType?: CellType
+  originalAddress?: string
 }
 type CellSlot = GridCell | null
 
@@ -84,6 +93,56 @@ const TICK_MS = 200
 const emptyRow = (cols: number = DEFAULT_COLS): CellSlot[] => Array(cols).fill(null)
 const makeRung = (id: number): Rung => ({ id, cols: DEFAULT_COLS, rows: [emptyRow()], links: [], comment: '' })
 
+export function parseAnyLadderToGrid(raw: string | null | undefined): Rung[] | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw)
+    if (!parsed) return null
+    if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object' && 'rows' in parsed[0]) {
+      return parsed as Rung[]
+    }
+    if (parsed && Array.isArray(parsed.rungs)) {
+      const gridRungs: Rung[] = (parsed.rungs as any[]).map((r, rIdx) => {
+        const elements = r.elements || []
+        const outputs = elements.filter((el: any) => ['COIL', 'TIMER', 'COUNTER'].includes(el.kind))
+        const inputs = elements.filter((el: any) => !['COIL', 'TIMER', 'COUNTER'].includes(el.kind))
+        const cols = Math.max(DEFAULT_COLS, inputs.length + (outputs.length ? 1 : 0))
+        const row0: CellSlot[] = Array(cols).fill(null)
+        inputs.forEach((el: any, cIdx: number) => {
+          if (cIdx < cols - 1) {
+            let type: CellType = 'NO'
+            if (el.kind === 'PLACEHOLDER') type = 'PLACEHOLDER'
+            else if (el.kind === 'CONTACT') type = el.mode === 'NC' ? 'NC' : 'NO'
+            else if (el.kind === 'WIRE') type = 'WIRE'
+            const addr = el.address ? `${el.address.type}${el.address.number}` : ''
+            row0[cIdx] = { type, address: addr }
+          }
+        })
+        if (outputs.length > 0) {
+          const outEl = outputs[0]
+          let type: CellType = 'COIL'
+          if (outEl.kind === 'COIL') type = outEl.coilMode === 'SET' ? 'SET' : outEl.coilMode === 'RESET' ? 'RST' : 'COIL'
+          else if (outEl.kind === 'TIMER') type = outEl.timerType || 'TON'
+          else if (outEl.kind === 'COUNTER') type = outEl.counterType || 'CTU'
+          const addr = outEl.address ? `${outEl.address.type}${outEl.address.number}` : 'O1'
+          row0[cols - 1] = { type, address: addr, preset: outEl.presetMs ? outEl.presetMs / 1000 : outEl.presetCount || 10, timeUnit: 's' }
+        }
+        return {
+          id: rIdx + 1,
+          cols,
+          rows: [row0],
+          links: [],
+          comment: r.comment || '',
+        }
+      })
+      return gridRungs.length > 0 ? gridRungs : null
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 
 const TOOLBAR_ITEMS: { id: ToolId; tooltip: string; color: string }[] = [
   { id: 'SELECT', tooltip: 'Select / Edit', color: '#0F172A' },
@@ -101,6 +160,7 @@ const TOOLBAR_ITEMS: { id: ToolId; tooltip: string; color: string }[] = [
   { id: 'RES', tooltip: 'Reset', color: '#DC2626' },
   { id: 'MEM', tooltip: 'Memory Bit', color: '#7C3AED' },
   { id: 'BRANCH', tooltip: 'Branch / Junction (tap a cell — a new lane appears instantly)', color: '#6B7280' },
+  { id: 'PLACEHOLDER', tooltip: 'Kosongkan (Jadikan Slot Soal Siswa)', color: '#D97706' },
   { id: 'DELETE', tooltip: 'Delete Cell', color: '#EF4444' },
 ]
 
@@ -153,6 +213,13 @@ function ToolIcon({ id, color }: { id: string; color: string }) {
       // Tee / junction symbol — a horizontal wire with a vertical drop, exactly
       // how CX-Programmer marks the start of a parallel branch: ────┬────
       return <svg {...c}><line x1="2" y1="8" x2="22" y2="8" /><line x1="12" y1="8" x2="12" y2="19" /><circle cx="12" cy="8" r="1.8" fill={color} stroke="none" /></svg>
+    case 'PLACEHOLDER':
+      return (
+        <svg {...c}>
+          <rect x="3" y="3" width="18" height="18" rx="4" strokeDasharray="3 2" />
+          <text x="12" y="16" fontSize="12" fill={color} stroke="none" textAnchor="middle" fontFamily="'JetBrains Mono', monospace" fontWeight="700">?</text>
+        </svg>
+      )
     case 'DELETE':
       return <TrashIcon size={22} color={color} />
     default:
@@ -320,6 +387,17 @@ function CellSVG({
           <line x1="0" y1="20" x2={cellW} y2="20" stroke={flowStroke} strokeWidth="2" strokeLinecap="round" {...dashProps} />
         </svg>
       )
+    case 'PLACEHOLDER':
+      return (
+        <svg width={cellW} height="40" viewBox={`0 0 ${cellW} 40`}>
+          <line x1="0" y1="20" x2={cx - 15} y2="20" stroke="#F59E0B" strokeWidth="1.5" strokeDasharray="3 3" />
+          <g transform={scaleTransform} style={{ transformOrigin: scaleOrigin }}>
+            <rect x={cx - 15} y="8" width="30" height="24" rx="5" fill="rgba(245, 158, 11, 0.15)" stroke="#F59E0B" strokeWidth="1.8" strokeDasharray="4 2" />
+            <text x={cx} y="24" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#D97706" fontFamily="JetBrains Mono">?</text>
+          </g>
+          <line x1={cx + 15} y1="20" x2={cellW} y2="20" stroke="#F59E0B" strokeWidth="1.5" strokeDasharray="3 3" />
+        </svg>
+      )
     default:
       return <svg width={cellW} height="40" viewBox={`0 0 ${cellW} 40`} />
   }
@@ -330,6 +408,7 @@ function CellSVG({
 // ===========================
 function evalCellPower(power: boolean, cell: CellSlot, ioState: Record<string, boolean>, mem: Record<string, boolean>): boolean {
   if (!cell) return false // EMPTY cell = open circuit, exactly like a missing wire on a real ladder grid
+  if (cell.type === 'PLACEHOLDER') return false
   if (cell.type === 'WIRE') return power
   if (cell.type === 'NO') return power && !!ioState[cell.address]
   if (cell.type === 'NC') return power && !ioState[cell.address]
@@ -485,7 +564,20 @@ function validateRung(rung: Rung): RungValidity {
   return { valid, reason: valid ? '' : reason, badCells }
 }
 
-export default function SimulatorEditorScreen({ projectName, theme, project, onBack, onSaveLadder }: SimulatorEditorScreenProps) {
+export default function SimulatorEditorScreen({
+  projectName = 'PLC Simulator',
+  theme,
+  project,
+  onBack,
+  onSaveLadder,
+  initialLadderJson,
+  onChangeLadder,
+  readOnly = false,
+  isEmbedded = false,
+  isTeacherMode = false,
+  isStudentMode = false,
+  saveLabel,
+}: SimulatorEditorScreenProps) {
   const isDark = theme === 'dark'
   const bg = isDark ? '#1A1A1A' : '#F0F0F0'
   const appBar = isDark ? '#2A2A2A' : '#FFFFFF'
@@ -517,7 +609,10 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
   const nodeScale = nodeSize === 'small' ? 0.85 : nodeSize === 'large' ? 1.18 : 1.0
   const scanInterval = defaultScanTime || 50
 
-  const [rungs, setRungs] = useState<Rung[]>([makeRung(1), makeRung(2), makeRung(3)])
+  const [rungs, setRungs] = useState<Rung[]>(() => {
+    const fromJson = parseAnyLadderToGrid(initialLadderJson) || parseAnyLadderToGrid(project?.ladderJson)
+    return fromJson && fromJson.length > 0 ? fromJson : [makeRung(1), makeRung(2), makeRung(3)]
+  })
   const [running, setRunning] = useState(false)
   const [selectedTool, setSelectedTool] = useState<ToolId>('SELECT')
   const [dialog, setDialog] = useState<Dialog>({ type: null, rungId: 0, row: 0, col: 0 })
@@ -658,8 +753,8 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
   const canRedo = redoStackRef.current.length > 0
 
   handleSaveRef.current = () => {
+    const ladderJson = JSON.stringify(rungsRef.current)
     if (onSaveLadder) {
-      const ladderJson = JSON.stringify(rungsRef.current)
       onSaveLadder(ladderJson)
       dirtyRef.current = false
       setAutoSaveIndicator(true)
@@ -675,6 +770,12 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
           }))
         } catch { /* storage quota ignore */ }
       }
+    }
+    if (onChangeLadder) {
+      onChangeLadder(ladderJson)
+      dirtyRef.current = false
+      setAutoSaveIndicator(true)
+      setTimeout(() => setAutoSaveIndicator(false), 1500)
     }
   }
 
@@ -752,19 +853,22 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, scanInterval])
 
-  // ===== Load project ladder on mount =====
+  // ===== Load project ladder on mount / update =====
   useEffect(() => {
-    if (project?.ladderJson) {
-      try {
-        const parsed = JSON.parse(project.ladderJson) as Rung[]
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setRungs(parsed)
-          undoStackRef.current = []
-          redoStackRef.current = []
-        }
-      } catch { /* keep default rungs on parse failure */ }
+    const fromJson = parseAnyLadderToGrid(initialLadderJson) || parseAnyLadderToGrid(project?.ladderJson)
+    if (fromJson && fromJson.length > 0) {
+      setRungs(fromJson)
+      undoStackRef.current = []
+      redoStackRef.current = []
     }
-  }, [project])
+  }, [initialLadderJson, project?.ladderJson])
+
+  // Sync to parent onChangeLadder
+  useEffect(() => {
+    if (onChangeLadder) {
+      onChangeLadder(JSON.stringify(rungs))
+    }
+  }, [rungs, onChangeLadder])
 
   // ===== Auto-save based on Settings -> Umum -> Simpan Otomatis =====
   useEffect(() => {
@@ -926,6 +1030,36 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
   }
 
   const handleCellTap = (rungId: number, row: number, col: number) => {
+    if (readOnly) {
+      showToast('Mode hanya lihat (program terkunci)')
+      return
+    }
+
+    if (selectedTool === 'PLACEHOLDER') {
+      const r = findRung(rungId)
+      const currentCell = r ? getCellAt(r, row, col) : null
+      if (currentCell) {
+        recordHistory()
+        placeCell(rungId, row, col, {
+          type: 'PLACEHOLDER',
+          address: currentCell.address || '',
+          preset: currentCell.preset,
+          timeUnit: currentCell.timeUnit,
+          originalType: currentCell.type,
+          originalAddress: currentCell.address,
+        })
+        showToast('Komponen berhasil dikosongkan (slot soal siswa)')
+      }
+      return
+    }
+
+    const rCurrent = findRung(rungId)
+    const currentCell = rCurrent ? getCellAt(rCurrent, row, col) : null
+    if (currentCell && currentCell.type === 'PLACEHOLDER') {
+      setDialog({ type: 'component', rungId, row, col, editing: true })
+      return
+    }
+
     if (selectedTool === 'DELETE') { clearCell(rungId, row, col); return }
     if (selectedTool === 'BRANCH') {
       if (branchMode === 'new') {
@@ -1103,9 +1237,12 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      height: '100vh',
+      height: isEmbedded ? '100%' : '100vh',
+      minHeight: isEmbedded ? 520 : undefined,
       backgroundColor: bg,
       overflow: 'hidden',
+      position: 'relative',
+      borderRadius: isEmbedded ? 16 : 0,
     }}>
       <style>{`
         @keyframes pulseGlow { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } }
@@ -1120,22 +1257,24 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
         backgroundColor: appBar,
         borderBottom: `1px solid ${border}`,
         padding: '0 8px',
-        height: 56,
+        height: 52,
         display: 'flex',
         alignItems: 'center',
-        gap: 2,
+        gap: 4,
         flexShrink: 0,
         zIndex: 60,
       }}>
-        <button onClick={onBack} style={iconBtnStyle(isDark)}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={text} strokeWidth="2">
-            <path d="M19 12H5M12 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
+        {onBack && (
+          <button onClick={onBack} style={iconBtnStyle(isDark)} title="Kembali">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={text} strokeWidth="2">
+              <path d="M19 12H5M12 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
 
         <span style={{
           flex: 1,
-          fontSize: 15,
+          fontSize: 14,
           fontWeight: 600,
           color: text,
           fontFamily: 'Inter',
@@ -1157,26 +1296,43 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
             <path d="M21 13A9 9 0 1 1 18.73 6.5" strokeLinecap="round" />
           </svg>
         </button>
-        <button onClick={() => handleSaveRef.current()} style={iconBtnStyle(isDark)} title="Save (Ctrl+S)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M6 3.5h12a1 1 0 0 1 1 1V20l-7-4-7 4V4.5a1 1 0 0 1 1-1z" />
-          </svg>
-        </button>
-        <div style={{ position: 'relative' }}>
-          <button onClick={() => setExportMenuOpen(o => !o)} style={iconBtnStyle(isDark)} title="Export">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={text} strokeWidth="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
-              <polyline points="7 10 12 15 17 10" strokeLinecap="round" strokeLinejoin="round" />
-              <line x1="12" y1="15" x2="12" y2="3" strokeLinecap="round" />
+        {!readOnly && (
+          <button
+            onClick={() => handleSaveRef.current()}
+            style={{
+              ...iconBtnStyle(isDark),
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '0 8px',
+              borderRadius: 8,
+              border: `1px solid ${border}`,
+            }}
+            title={saveLabel || "Save (Ctrl+S)"}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 3.5h12a1 1 0 0 1 1 1V20l-7-4-7 4V4.5a1 1 0 0 1 1-1z" />
             </svg>
+            <span style={{ fontSize: 11, fontWeight: 600, color: text }}>{saveLabel || 'Simpan'}</span>
           </button>
-          {exportMenuOpen && (
-            <div style={{ position: 'absolute', right: 0, top: 40, zIndex: 100, backgroundColor: appBar, border: `1px solid ${border}`, borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', overflow: 'hidden' }}>
-              <button onClick={() => handleExport('gsp')} style={{ display: 'block', width: '100%', padding: '8px 16px', border: 'none', backgroundColor: 'transparent', color: text, fontFamily: 'Inter', fontSize: 12, cursor: 'pointer', textAlign: 'left' }}>Export .gsp</button>
-              <button onClick={() => handleExport('json')} style={{ display: 'block', width: '100%', padding: '8px 16px', border: 'none', backgroundColor: 'transparent', color: text, fontFamily: 'Inter', fontSize: 12, cursor: 'pointer', textAlign: 'left' }}>Export .json</button>
-            </div>
-          )}
-        </div>
+        )}
+        {!isEmbedded && (
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setExportMenuOpen(o => !o)} style={iconBtnStyle(isDark)} title="Export">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={text} strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
+                <polyline points="7 10 12 15 17 10" strokeLinecap="round" strokeLinejoin="round" />
+                <line x1="12" y1="15" x2="12" y2="3" strokeLinecap="round" />
+              </svg>
+            </button>
+            {exportMenuOpen && (
+              <div style={{ position: 'absolute', right: 0, top: 40, zIndex: 100, backgroundColor: appBar, border: `1px solid ${border}`, borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', overflow: 'hidden' }}>
+                <button onClick={() => handleExport('gsp')} style={{ display: 'block', width: '100%', padding: '8px 16px', border: 'none', backgroundColor: 'transparent', color: text, fontFamily: 'Inter', fontSize: 12, cursor: 'pointer', textAlign: 'left' }}>Export .gsp</button>
+                <button onClick={() => handleExport('json')} style={{ display: 'block', width: '100%', padding: '8px 16px', border: 'none', backgroundColor: 'transparent', color: text, fontFamily: 'Inter', fontSize: 12, cursor: 'pointer', textAlign: 'left' }}>Export .json</button>
+              </div>
+            )}
+          </div>
+        )}
         {autoSaveIndicator && (
           <span style={{ fontSize: 10, color: '#22C55E', fontFamily: 'JetBrains Mono', fontWeight: 600, padding: '0 4px', whiteSpace: 'nowrap' }}>
             Saved
@@ -1212,11 +1368,16 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
         height: 52,
         display: 'flex',
         alignItems: 'center',
-        overflowX: 'auto',
-        flexShrink: 0,
         gap: 2,
+        overflowX: 'auto',
+        overflowY: 'hidden',
+        flexShrink: 0,
       }}>
-        {TOOLBAR_ITEMS.map(item => (
+        {TOOLBAR_ITEMS.filter((item) => {
+          if (readOnly) return false
+          if (!isTeacherMode && item.id === 'PLACEHOLDER') return false
+          return true
+        }).map((item) => (
           <button
             key={item.id}
             className="ge-btn"
@@ -1248,14 +1409,17 @@ export default function SimulatorEditorScreen({ projectName, theme, project, onB
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap',
       }}>
         <span>
-          {selectedTool === 'SELECT' && 'SELECT MODE · tap a cell to edit, tap an empty cell to insert'}
-          {selectedTool === 'DELETE' && 'DELETE MODE · tap a cell to clear it back to EMPTY'}
-          {selectedTool === 'WIRE' && 'WIRE MODE · tap a cell to place a wire segment connecting it to its neighbours'}
-          {selectedTool === 'BRANCH' && branchMode === 'new' && 'BRANCH MODE · tap any cell — a new lane + vertical wire appears there instantly'}
-          {selectedTool === 'BRANCH' && branchMode === 'connect' && (branchAnchor
+          {readOnly && 'MODE KUNCI JAWABAN (TERKUNCI) · Rangkaian acuan penilaian · Tekan RUN untuk simulasi'}
+          {isStudentMode && 'MODE PENGERJAAN SISWA · Klik slot [ ? ] untuk melengkapi komponen yang kosong'}
+          {!readOnly && !isStudentMode && selectedTool === 'SELECT' && 'SELECT MODE · tap a cell to edit, tap an empty cell to insert'}
+          {!readOnly && selectedTool === 'DELETE' && 'DELETE MODE · tap a cell to clear it back to EMPTY'}
+          {!readOnly && selectedTool === 'WIRE' && 'WIRE MODE · tap a cell to place a wire segment connecting it to its neighbours'}
+          {!readOnly && selectedTool === 'BRANCH' && branchMode === 'new' && 'BRANCH MODE · tap any cell — a new lane + vertical wire appears there instantly'}
+          {!readOnly && selectedTool === 'BRANCH' && branchMode === 'connect' && (branchAnchor
             ? 'CONNECT MODE · now tap the other wire to tie them together'
             : 'CONNECT MODE · tap the first wire, then the second, to link two existing lanes')}
-          {!['SELECT', 'DELETE', 'WIRE', 'BRANCH'].includes(selectedTool as string) && `${selectedTool} MODE · tap a cell to insert directly · double-tap for full picker`}
+          {!readOnly && selectedTool === 'PLACEHOLDER' && 'KOSONGKAN MODE · klik komponen mana pun untuk menjadikannya slot [ ? ] yang wajib diisi siswa'}
+          {!readOnly && !isStudentMode && !['SELECT', 'DELETE', 'WIRE', 'BRANCH', 'PLACEHOLDER'].includes(selectedTool as string) && `${selectedTool} MODE · tap a cell to insert directly · double-tap for full picker`}
         </span>
         {selectedTool === 'BRANCH' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>

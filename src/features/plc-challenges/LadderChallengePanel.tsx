@@ -46,8 +46,13 @@ interface Props {
 function parseProject(json: string | null): LadderProject | null {
   if (!json) return null;
   try {
-    const parsed = JSON.parse(json) as LadderProject;
-    return parsed && Array.isArray(parsed.rungs) && parsed.meta ? parsed : null;
+    const parsed = JSON.parse(json);
+    if (parsed && Array.isArray(parsed.rungs) && parsed.meta) return parsed as LadderProject;
+    if (Array.isArray(parsed) && parsed.length > 0 && 'rows' in parsed[0]) {
+      const converted = importFromGridJson(json, 'Converted Ladder');
+      return converted ? converted.project : null;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -122,18 +127,9 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
     if (importDialogOpen) loadSimulatorProjects();
   }, [importDialogOpen, loadSimulatorProjects]);
 
-  // Builds imported ladder draft from simulator raw JSON
+  // Builds imported ladder draft directly from simulator raw JSON
   const buildImportedLadder = (rawJson: string, label: string, projectId?: string): LadderChallengeDraft => {
-    let json = rawJson;
-    const converted = importFromGridJson(rawJson, label);
-    if (converted) {
-      json = JSON.stringify(converted.project);
-      if (converted.warnings.length) {
-        alert(
-          `Program berhasil diimpor, tapi ada bagian yang disesuaikan:\n\n${converted.warnings.join('\n')}`
-        );
-      }
-    }
+    const json = rawJson;
     setImportedFromLabel(label);
 
     // Auto-derive realistic test cases directly from the imported program
@@ -272,24 +268,47 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
     if (!value.answerProgramJson || !value.starterProgramJson) return null;
     const ans = parseProject(value.answerProgramJson);
     const start = parseProject(value.starterProgramJson);
-    if (!ans || !start) return null;
 
     const placeholders: { id: string; label: string; originalLabel: string }[] = [];
-    for (const r of start.rungs) {
-      for (const el of r.elements) {
-        if (el.kind === 'PLACEHOLDER') {
-          const orig = (el as any).originalElement;
-          const origDesc = orig?.address ? `${orig.kind} ${orig.address.type}${orig.address.number}` : 'Komponen';
-          placeholders.push({
-            id: el.id,
-            label: el.alias || 'Slot Kosong',
-            originalLabel: origDesc,
+
+    // Detect from native grid cells
+    try {
+      const parsedStart = JSON.parse(value.starterProgramJson);
+      if (Array.isArray(parsedStart)) {
+        parsedStart.forEach((r: any, rIdx: number) => {
+          (r.rows || []).forEach((row: any[], rowIdx: number) => {
+            row.forEach((cell: any, colIdx: number) => {
+              if (cell && cell.type === 'PLACEHOLDER') {
+                placeholders.push({
+                  id: `slot-${rIdx}-${rowIdx}-${colIdx}`,
+                  label: cell.address || 'Slot Kosong',
+                  originalLabel: cell.originalType ? `${cell.originalType} ${cell.originalAddress || ''}`.trim() : 'Komponen',
+                });
+              }
+            });
           });
+        });
+      }
+    } catch {}
+
+    // Also detect from legacy format if available
+    if (start) {
+      for (const r of start.rungs) {
+        for (const el of r.elements) {
+          if (el.kind === 'PLACEHOLDER') {
+            const orig = (el as any).originalElement;
+            const origDesc = orig?.address ? `${orig.kind} ${orig.address.type}${orig.address.number}` : 'Komponen';
+            placeholders.push({
+              id: el.id,
+              label: el.alias || 'Slot Kosong',
+              originalLabel: origDesc,
+            });
+          }
         }
       }
     }
 
-    const structCheck = gradeStructuralLadder(start, ans);
+    const structCheck = (start && ans) ? gradeStructuralLadder(start, ans) : { score: 100, feedback: [] };
     return {
       placeholders,
       structuralMatch: structCheck.score,
@@ -438,6 +457,7 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
                   <LadderEditorScreen
                     key={`answer:${value.answerProgramJson?.slice(0, 32)}`}
                     initialProject={parseProject(value.answerProgramJson)}
+                    initialLadderJson={value.answerProgramJson}
                     readOnly={true}
                     saveLabel="Kunci Jawaban Terkunci"
                   />
@@ -524,6 +544,7 @@ export function LadderChallengePanel({ value, onChange, disabled = false }: Prop
                   <LadderEditorScreen
                     key={`starter:${value.starterProgramJson?.slice(0, 32)}`}
                     initialProject={parseProject(value.starterProgramJson)}
+                    initialLadderJson={value.starterProgramJson}
                     isTeacherMode={true}
                     readOnly={false}
                     onChangeLadder={(json) => onChange({ ...value, starterProgramJson: json })}
